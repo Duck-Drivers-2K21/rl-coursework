@@ -1,4 +1,7 @@
-<h1>Setup Gym</h1>
+# Group 69 RL Coursework
+
+
+## Setup
 
 RUN:
 
