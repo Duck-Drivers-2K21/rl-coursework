@@ -1,7 +1,10 @@
-# Group 69 RL Coursework
+# bagel
 
+> In tennis, a bagel is when the set ends with a score of 6–0.
 
-## Setup
+An exploration in Reinforcement Learning, by writing a range of Agents that learn to play tennis.
+
+## Setup 
 
 RUN:
 
