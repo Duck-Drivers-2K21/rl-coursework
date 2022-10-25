@@ -1,13 +1,13 @@
-# https://github.com/mila-iqia/atari-representation-learning/blob/master/atariari/benchmark/ram_annotations.py
-tennisMem = dict(enemy_x=27,
-                 enemy_y=25,
-                 enemy_score=70,
-                 ball_x=16,
-                 ball_y=17,
-                 player_x=26,
-                 player_y=24,
-                 player_score=69
-                 )
+class MemoryLocations:
+    # https://github.com/mila-iqia/atari-representation-learning/blob/master/atariari/benchmark/ram_annotations.py
+    enemy_x = 27
+    enemy_y = 25
+    enemy_score = 70
+    ball_x = 16
+    ball_y = 17
+    player_x = 26
+    player_y = 24
+    player_score = 69
 
 
 class Actions:
