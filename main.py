@@ -66,7 +66,7 @@ class Environment:
 
 
 def get_action(state: State):
-    if state.player_x < state.ball_x:
+    if state.player_pos[0] < state.ball_pos[0]:
         return util.Actions.DOWNRIGHTFIRE
 
     else:
