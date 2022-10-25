@@ -10,16 +10,25 @@ class State:
         self.truncated = False
 
     @property
-    def player_x(self): return self.observation[util.MemoryLocations.player_x]
+    def player_pos(self): return self._player_x, self._player_y
 
     @property
-    def player_y(self): return self.observation[util.MemoryLocations.player_y]
+    def enemy_pos(self): return self._enemy_x, self._enemy_y
 
     @property
-    def enemy_x(self): return self.observation[util.MemoryLocations.enemy_x]
+    def ball_pos(self): return self._ball_x, self._ball_y
 
     @property
-    def enemy_y(self): return self.observation[util.MemoryLocations.enemy_y]
+    def _player_x(self): return self.observation[util.MemoryLocations.player_x]
+
+    @property
+    def _player_y(self): return self.observation[util.MemoryLocations.player_y]
+
+    @property
+    def _enemy_x(self): return self.observation[util.MemoryLocations.enemy_x]
+
+    @property
+    def _enemy_y(self): return self.observation[util.MemoryLocations.enemy_y]
 
     @property
     def enemy_score(self): return self.observation[util.MemoryLocations.enemy_score]
@@ -28,10 +37,10 @@ class State:
     def player_score(self): return self.observation[util.MemoryLocations.player_score]
 
     @property
-    def ball_x(self): return self.observation[util.MemoryLocations.ball_x]
+    def _ball_x(self): return self.observation[util.MemoryLocations.ball_x]
 
     @property
-    def ball_y(self): return self.observation[util.MemoryLocations.ball_y]
+    def _ball_y(self): return self.observation[util.MemoryLocations.ball_y]
 
 
 class Environment:
