@@ -10,36 +10,28 @@ class State:
         self.truncated = False
 
     @property
-    def player_x(self):
-        return self.observation[util.tennisMem['player_x']]
+    def player_x(self): return self.observation[util.MemoryLocations.player_x]
 
     @property
-    def player_y(self):
-        return self.observation[util.tennisMem['player_y']]
+    def player_y(self): return self.observation[util.MemoryLocations.player_y]
 
     @property
-    def enemy_x(self):
-        return self.observation[util.tennisMem['enemy_x']]
+    def enemy_x(self): return self.observation[util.MemoryLocations.enemy_x]
 
     @property
-    def enemy_y(self):
-        return self.observation[util.tennisMem['enemy_y']]
+    def enemy_y(self): return self.observation[util.MemoryLocations.enemy_y]
 
     @property
-    def enemy_score(self):
-        return self.observation[util.tennisMem['enemy_score']]
+    def enemy_score(self): return self.observation[util.MemoryLocations.enemy_score]
 
     @property
-    def player_score(self):
-        return self.observation[util.tennisMem['player_score']]
+    def player_score(self): return self.observation[util.MemoryLocations.player_score]
 
     @property
-    def ball_x(self):
-        return self.observation[util.tennisMem['ball_x']]
+    def ball_x(self): return self.observation[util.MemoryLocations.ball_x]
 
     @property
-    def ball_y(self):
-        return self.observation[util.tennisMem['ball_y']]
+    def ball_y(self): return self.observation[util.MemoryLocations.ball_y]
 
 
 class Environment:
@@ -53,7 +45,8 @@ class Environment:
     def step(self, action):
         if self.state.terminated or self.state.truncated:
             self.reset()
-        self.state.observation, reward, self.state.terminated, self.state.truncated, self.state.info = self.env.step(action)
+        self.state.observation, reward, self.state.terminated, self.state.truncated, self.state.info = self.env.step(
+            action)
         return reward
 
     def reset(self):
