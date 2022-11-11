@@ -45,7 +45,7 @@ class State:
 
 class Environment:
     def __init__(self, seed: int = 42):
-        env = gym.make("ALE/Tennis-v5", render_mode="human", obs_type='ram')
+        env = gym.make("ALE/Pong-v5", render_mode="human", obs_type='ram')
         env.action_space.seed(seed)
         observation, info = env.reset(seed=42)
         self.env = env
@@ -66,12 +66,7 @@ class Environment:
 
 
 def get_action(state: State):
-    if state.player_pos[0] < state.ball_pos[0]:
-        return util.Actions.DOWNRIGHTFIRE
-
-    else:
-        return util.Actions.DOWNLEFTFIRE
-
+    return Environment.
 
 def run():
     env = Environment()
