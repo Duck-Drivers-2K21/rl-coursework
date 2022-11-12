@@ -65,7 +65,8 @@ class Environment:
         return reward
 
     def reset(self) -> None:
-        self.state.observation, self.state.info = self.env.reset()
+        observation, info = self.env.reset()
+        self.state = State(observation, info)
 
     def close(self) -> None:
         self.env.close()
