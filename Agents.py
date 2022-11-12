@@ -46,8 +46,9 @@ def run():
     env = main.Environment()
     agent = RandomAgent(env)
     try:
-        _, rewards = agent.generate_episode()
-        print(f"episode done in {len(rewards)} timesteps.")
+        for _ in range(10):
+          _, rewards = agent.generate_episode()
+          print(f"episode done in {len(rewards)} timesteps.")
     except KeyboardInterrupt:
         print("Keyboard Interrupt")
     finally:
