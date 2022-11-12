@@ -42,47 +42,30 @@ class State:
     @property
     def _ball_y(self): return self.observation[util.MemoryLocations.ball_y]
 
+    @property
+    def is_terminal(self): return self.terminated or self.truncated
+
 
 class Environment:
-    def __init__(self, seed: int = 42):
-        env = gym.make("ALE/Pong-v5", render_mode="human", obs_type='ram')
+    def __init__(self, seed: int = 42, render: bool = False):
+        if render:
+            env = gym.make("ALE/Pong-v5", render_mode="human", obs_type='ram')
+        else:
+            env = gym.make("ALE/Pong-v5", obs_type='ram')
         env.action_space.seed(seed)
-        observation, info = env.reset(seed=42)
+        observation, info = env.reset(seed=seed)
         self.env = env
         self.state = State(observation, info)
 
-    def step(self, action):
-        if self.state.terminated or self.state.truncated:
-            self.reset()
+    def step(self, action) -> float:
+        if self.state.is_terminal:
+            self.reset()  # Why are we resetting here? Wouldn't an assertion be more logical/safer?
         self.state.observation, reward, self.state.terminated, self.state.truncated, self.state.info = self.env.step(
             action)
         return reward
 
-    def reset(self):
+    def reset(self) -> None:
         self.state.observation, self.state.info = self.env.reset()
 
-    def close(self):
-        return self.env.close()
-
-
-def get_action(state: State):
-    return Environment.
-
-def run():
-    env = Environment()
-    action = util.Actions.NOOP
-
-    try:
-        while True:
-            reward = env.step(action)
-            action = get_action(env.state)
-            print(reward)
-    except KeyboardInterrupt:
-        print("Keyboard Interrupt")
-    finally:
-        print("Closing environment")
-        env.close()
-
-
-if __name__ == "__main__":
-    run()
+    def close(self) -> None:
+        self.env.close()
