@@ -57,9 +57,9 @@ class Environment:
         self.env = env
         self.state = State(observation, info)
 
-    def step(self, action) -> float:
+    def step(self, action: int) -> float:
         if self.state.is_terminal:
-            self.reset()  # Why are we resetting here? Wouldn't an assertion be more logical/safer?
+            self.reset()  # TODO: Why are we resetting here? Wouldn't an assertion be more logical/safer?
         self.state.observation, reward, self.state.terminated, self.state.truncated, self.state.info = self.env.step(
             action)
         return reward
