@@ -17,3 +17,5 @@ class Actions:
     LEFT = 3
     RIGHTFIRE = 4
     LEFTFIRE = 5
+    # Number of available actions:
+    NUM_ACTIONS = 6
