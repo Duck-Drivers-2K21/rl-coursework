@@ -47,11 +47,14 @@ class State:
 
 
 class Environment:
-    def __init__(self, seed: int = 42, render: bool = False):
-        if render:
-            env = gym.make("ALE/Pong-v5", render_mode="human", obs_type='ram')
-        else:
-            env = gym.make("ALE/Pong-v5", obs_type='ram')
+    def __init__(self, seed: int = 42, render: bool = False, difficulty=0):
+        args = dict(
+            difficulty=difficulty,
+            obs_type='ram',
+            render_mode="human" if render else None
+        )
+        env = gym.make("ALE/Pong-v5", **args)
+
         env.action_space.seed(seed)
         observation, info = env.reset(seed=seed)
         self.env = env
@@ -64,8 +67,7 @@ class Environment:
             action)
         return reward
 
-
-  def reset(self) -> None:
+    def reset(self) -> None:
         observation, info = self.env.reset()
         self.state = State(observation, info)
 
@@ -94,7 +96,7 @@ def get_action(state: State):
     prev_bx = bx
 
     if by == 0:
-        if abs(py-80) < 10:
+        if abs(py - 80) < 10:
             return util.Actions.NOOP
         if py > 80:
             return util.Actions.RIGHTFIRE
