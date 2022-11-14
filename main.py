@@ -48,12 +48,9 @@ class State:
 
 class Environment:
     def __init__(self, seed: int = 42, render: bool = False, difficulty=0):
-        args = dict(
-            difficulty=difficulty,
-            obs_type='ram',
-            render_mode="human" if render else None
-        )
-        env = gym.make("ALE/Pong-v5", **args)
+        render_mode = "human" if render else None
+
+        env = gym.make("ALE/Pong-v5", difficulty=difficulty, obs_type='ram', render_mode=render_mode)
 
         env.action_space.seed(seed)
         observation, info = env.reset(seed=seed)
