@@ -1,10 +1,8 @@
+import random
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sized
-from typing import List
 
 from util import Actions
-from main import Environment, State
-import random
+from Pong import Environment, State
 
 
 class Trajectory:
@@ -42,7 +40,11 @@ class Agent(ABC):
         self.env = env
 
     @abstractmethod
-    def generate_episode(self) -> Trajectory: pass
+    def generate_episode(self) -> Trajectory:
+        """
+        Returns the generated trajectory (state-action pairs, rewards, scores)
+        """
+        pass
 
 
 class RandomAgent(Agent):
@@ -62,10 +64,6 @@ class RandomAgent(Agent):
         return random.randint(0, Actions.NUM_ACTIONS - 1)
 
     def generate_episode(self) -> Trajectory:
-        """
-        Returns the generated trajectory (state-action pairs, rewards, scores)
-        """
-
         trajectory = Trajectory()
         self.env.reset()
 
@@ -108,6 +106,7 @@ class NaiveAgent(Agent):
                 return Actions.RIGHTFIRE
             else:
                 return Actions.LEFTFIRE
+
         self._tick = not self._tick
 
         paddle_y_offset = 9
@@ -154,26 +153,3 @@ class NaiveAgent(Agent):
         return trajectory
 
 
-def train(agent_type: type, n_episodes: int = 10):
-    env = Environment()
-    agent = agent_type(env)
-    try:
-        for _ in range(n_episodes):
-            episode = agent.generate_episode()
-            outcome = "won" if episode.player_score > episode.enemy_score else "lost"
-            print(
-                f"Agent {outcome} with a score of {episode.player_score} to {episode.enemy_score}."
-                f"({len(episode)} timesteps)"
-            )
-    except KeyboardInterrupt:
-        print("Keyboard Interrupt...")
-    finally:
-        print("Closing environment.")
-        env.close()
-
-
-if __name__ == "__main__":
-    print("Training RandomAgent:")
-    train(RandomAgent)
-    print("---\nTraining NaiveAgent:")
-    train(NaiveAgent)
