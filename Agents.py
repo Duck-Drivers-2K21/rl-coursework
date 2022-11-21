@@ -1,8 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 
-from util import Actions
-from Pong import Environment, State
+from Pong import Environment, State, Actions
 
 
 class Trajectory:
@@ -31,9 +30,9 @@ class Trajectory:
     def __len__(self) -> int: return len(self.rewards)
 
 
-class Agent(ABC):
+class AbstractAgent(ABC):
     """
-    Abstract Class for Agents
+    Abstract Class for Agents.
     """
 
     def __init__(self, env: Environment) -> None:
@@ -46,11 +45,22 @@ class Agent(ABC):
         """
         pass
 
+    @property
+    def name(self):
+        return type(self).__name__
 
-class RandomAgent(Agent):
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return f"<{self.name}>"
+
+
+class RandomAgent(AbstractAgent):
     """
     # Picks random action at each time-step.
     """
+
     def __init__(self, env: Environment) -> None:
         super().__init__(env)
 
@@ -77,7 +87,7 @@ class RandomAgent(Agent):
         return trajectory
 
 
-class NaiveAgent(Agent):
+class NaiveAgent(AbstractAgent):
     """
     Tracks the ball's coordinates and attempts to deflect it.
     """
@@ -151,5 +161,3 @@ class NaiveAgent(Agent):
 
             trajectory.append(state, action, reward)
         return trajectory
-
-
