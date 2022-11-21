@@ -4,9 +4,8 @@ import util
 
 class State:
     # Player and Enemy x-coordinates do not change. Paddles only move vertically.
-    _ENEMY_X = 64
+    _ENEMY_X  = 64
     _PLAYER_X = 188
-
     def __init__(self, observation, info):
         self.observation = observation
         self.info = info
@@ -51,7 +50,7 @@ class State:
 
 
 class Environment:
-    def __init__(self, seed: int = 42, render: bool = False, difficulty: int = 0):
+    def __init__(self, seed: int = 42, render: bool = False, difficulty : int = 0):
         render_mode = "human" if render else None
 
         env = gym.make("ALE/Pong-v5", difficulty=difficulty, obs_type='ram', render_mode=render_mode)
