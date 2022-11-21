@@ -15,7 +15,7 @@ class Trajectory():
     @property
     def timesteps(self) -> int: return len(self.rewards)
 
-    def append(self, state : State, action : int, reward : int) -> None:
+    def append(self, state: State, action: int, reward: float) -> None:
         self.state_action_pairs.append((state, action))
         self.rewards.append(reward)
         self.summed_undiscounted_rewards += reward
@@ -25,7 +25,7 @@ class Trajectory():
 
 class RandomAgent():
     # Picks random action at each time-step.
-    def __init__(self, env : Environment) -> None:
+    def __init__(self, env: Environment) -> None:
         self.env = env
 
     def __get_action__(self) -> int:
@@ -51,7 +51,7 @@ class RandomAgent():
 
 class NaiveAgent():
     # Tracks the ball's coordinates and attempts to deflect it.
-    def __init__(self, env : Environment) -> None:
+    def __init__(self, env: Environment) -> None:
         self.env = env
         self._tick = False
         self._prev_bx = 0
@@ -123,19 +123,21 @@ class NaiveAgent():
         return trajectory
 
 
-def train(agent_type : type, n_episodes : int = 10):
-  env = Environment()
-  agent = agent_type(env)
-  try:
-      for _ in range(n_episodes):
-        episode = agent.generate_episode()
-        outcome = "won" if episode.player_score > episode.enemy_score else "lost"
-        print(f"Agent {outcome} with a score of {episode.player_score} to {episode.enemy_score}. ({episode.timesteps} timesteps)")
-  except KeyboardInterrupt:
-      print("Keyboard Interrupt...")
-  finally:
-      print("Closing environment.")
-      env.close()
+def train(agent_type: type, n_episodes: int = 10):
+    env = Environment()
+    agent = agent_type(env)
+    try:
+        for _ in range(n_episodes):
+            episode = agent.generate_episode()
+            outcome = "won" if episode.player_score > episode.enemy_score else "lost"
+            print(
+                f"Agent {outcome} with a score of {episode.player_score} to {episode.enemy_score}. ({episode.timesteps} timesteps)")
+    except KeyboardInterrupt:
+        print("Keyboard Interrupt...")
+    finally:
+        print("Closing environment.")
+        env.close()
+
 
 if __name__ == "__main__":
     print("Training RandomAgent:")
