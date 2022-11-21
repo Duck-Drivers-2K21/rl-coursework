@@ -3,6 +3,9 @@ import util
 
 
 class State:
+    # Player and Enemy x-coordinates do not change. Paddles only move vertically.
+    _ENEMY_X  = 64
+    _PLAYER_X = 188
     def __init__(self, observation, info):
         self.observation = observation
         self.info = info
@@ -10,37 +13,37 @@ class State:
         self.truncated = False
 
     @property
-    def player_pos(self): return self._player_x, self._player_y
+    def player_pos(self): return self._PLAYER_X, self._player_y
 
     @property
-    def enemy_pos(self): return self._enemy_x, self._enemy_y
+    def enemy_pos(self): return self._ENEMY_X, self._enemy_y
 
     @property
     def ball_pos(self): return self._ball_x, self._ball_y
 
-    @property
-    def _player_x(self): return self.observation[util.MemoryLocations.player_x]
+    # @property
+    # def _player_x(self): return self.observation[util.MemoryLocations.PLAYER_X]
 
     @property
-    def _player_y(self): return self.observation[util.MemoryLocations.player_y]
+    def _player_y(self): return self.observation[util.MemoryLocations.PLAYER_Y]
+
+    # @property
+    # def _enemy_x(self): return self.observation[util.MemoryLocations.ENEMY_X]
 
     @property
-    def _enemy_x(self): return self.observation[util.MemoryLocations.enemy_x]
+    def _enemy_y(self): return self.observation[util.MemoryLocations.ENEMY_Y]
 
     @property
-    def _enemy_y(self): return self.observation[util.MemoryLocations.enemy_y]
+    def enemy_score(self): return self.observation[util.MemoryLocations.ENEMY_SCORE]
 
     @property
-    def enemy_score(self): return self.observation[util.MemoryLocations.enemy_score]
+    def player_score(self): return self.observation[util.MemoryLocations.PLAYER_SCORE]
 
     @property
-    def player_score(self): return self.observation[util.MemoryLocations.player_score]
+    def _ball_x(self): return self.observation[util.MemoryLocations.BALL_X]
 
     @property
-    def _ball_x(self): return self.observation[util.MemoryLocations.ball_x]
-
-    @property
-    def _ball_y(self): return self.observation[util.MemoryLocations.ball_y]
+    def _ball_y(self): return self.observation[util.MemoryLocations.BALL_Y]
 
     @property
     def is_terminal(self): return self.terminated or self.truncated
@@ -138,8 +141,8 @@ def run():
             reward = env.step(action)
             action = get_action(env.state)
             if env.state.terminated:
-                player = env.state.observation[util.MemoryLocations.player_score]
-                enemy = env.state.observation[util.MemoryLocations.enemy_score]
+                player = env.state.observation[util.MemoryLocations.PLAYER_SCORE]
+                enemy = env.state.observation[util.MemoryLocations.ENEMY_SCORE]
                 win = player > enemy
                 status = "Won" if win else "Lost"
                 print(f"{status}: {player}, {enemy}")
@@ -149,6 +152,3 @@ def run():
     finally:
         print("Closing environment")
         env.close()
-
-    def close(self) -> None:
-        self.env.close()
