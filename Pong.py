@@ -1,5 +1,27 @@
 import gym
-import util
+
+
+class MemoryLocations:
+    # https://github.com/mila-iqia/atari-representation-learning/blob/master/atariari/benchmark/ram_annotations.py
+    PLAYER_Y = 51
+    PLAYER_X = 46
+    ENEMY_Y = 50
+    ENEMY_X = 45
+    BALL_X = 49
+    BALL_Y = 54
+    ENEMY_SCORE = 13
+    PLAYER_SCORE = 14
+
+
+class Actions:
+    NOOP = 0
+    FIRE = 1
+    RIGHT = 2
+    LEFT = 3
+    RIGHTFIRE = 4
+    LEFTFIRE = 5
+    # Number of available actions:
+    NUM_ACTIONS = 6
 
 
 class State:
@@ -26,25 +48,25 @@ class State:
     # def _player_x(self): return self.observation[util.MemoryLocations.PLAYER_X]
 
     @property
-    def _player_y(self): return self.observation[util.MemoryLocations.PLAYER_Y]
+    def _player_y(self): return self.observation[MemoryLocations.PLAYER_Y]
 
     # @property
     # def _enemy_x(self): return self.observation[util.MemoryLocations.ENEMY_X]
 
     @property
-    def _enemy_y(self): return self.observation[util.MemoryLocations.ENEMY_Y]
+    def _enemy_y(self): return self.observation[MemoryLocations.ENEMY_Y]
 
     @property
-    def enemy_score(self): return self.observation[util.MemoryLocations.ENEMY_SCORE]
+    def enemy_score(self): return self.observation[MemoryLocations.ENEMY_SCORE]
 
     @property
-    def player_score(self): return self.observation[util.MemoryLocations.PLAYER_SCORE]
+    def player_score(self): return self.observation[MemoryLocations.PLAYER_SCORE]
 
     @property
-    def _ball_x(self): return self.observation[util.MemoryLocations.BALL_X]
+    def _ball_x(self): return self.observation[MemoryLocations.BALL_X]
 
     @property
-    def _ball_y(self): return self.observation[util.MemoryLocations.BALL_Y]
+    def _ball_y(self): return self.observation[MemoryLocations.BALL_Y]
 
     @property
     def is_terminal(self): return self.terminated or self.truncated
@@ -75,4 +97,3 @@ class Environment:
 
     def close(self):
         return self.env.close()
-
