@@ -1,13 +1,13 @@
 class MemoryLocations:
     # https://github.com/mila-iqia/atari-representation-learning/blob/master/atariari/benchmark/ram_annotations.py
-    player_y = 51
-    player_x = 46
-    enemy_y = 50
-    enemy_x = 45
-    ball_x = 49
-    ball_y = 54
-    enemy_score = 13
-    player_score = 14
+    PLAYER_Y = 51
+    PLAYER_X = 46
+    ENEMY_Y = 50
+    ENEMY_X = 45
+    BALL_X = 49
+    BALL_Y = 54
+    ENEMY_SCORE = 13
+    PLAYER_SCORE = 14
 
 
 class Actions:
