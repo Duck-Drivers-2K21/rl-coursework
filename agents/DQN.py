@@ -67,12 +67,14 @@ class RandomActionsOnReset(gym.Wrapper):
 class ExperienceBuffer(object):
     def __init__(self, capacity, num_frames_stack):
         self.memory = deque(maxlen=capacity)
-        self.frames = np.ndarray((capacity, 84, 84))
-        self.actions = np.ndarray((capacity, 1))
-        self.rewards = np.ndarray((capacity, 1))
-        self.dones = np.ndarray((capacity, 1))
 
         self.max_capacity = capacity + 3
+
+        self.frames = np.ndarray((self.max_capacity, 84, 84))
+        self.actions = np.ndarray((self.max_capacity, 1))
+        self.rewards = np.ndarray((self.max_capacity, 1))
+        self.dones = np.ndarray((self.max_capacity, 1))
+
         self.num_frames_stack = num_frames_stack
         self.filled = False
         self.counter = 0
