@@ -58,7 +58,7 @@ class AbstractAgent(ABC):
 
 class RandomAgent(AbstractAgent):
     """
-    # Picks random action at each time-step.
+    Picks random action at each time-step.
     """
 
     def __init__(self, env: Environment) -> None:
@@ -66,10 +66,9 @@ class RandomAgent(AbstractAgent):
 
     def _get_action(self) -> int:
         """
-
+        Using env.action_space.sample() gives us the same outcome every time...
+        Opting to use random.randint(0, num_actions) instead.
         """
-        # Using env.action_space.sample() gives us the same outcome every time...
-        # Opting to use random.randint(0, num_actions) instead.
         assert Actions.NUM_ACTIONS == self.env.env.action_space.n, "Number of actions don't match..."
         return random.randint(0, Actions.NUM_ACTIONS - 1)
 

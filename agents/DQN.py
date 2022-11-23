@@ -64,6 +64,19 @@ class RandomActionsOnReset(gym.Wrapper):
         return obs, info
 
 
+class CroppedBorders(gym.Wrapper):
+    def __init__(self, env):
+        super(CroppedBorders, self).__init__(env)
+
+    def _preprocess_frame(observation: np.ndarray) -> np.ndarray:
+        # Remove scores and cut unecessary whitespace...
+        assert observation.shape == (210, 160), "Sizes don't match..."
+        ROWS = [194 + j for j in range(16)] + [i for i in range(34)]
+        cropped_frame = np.delete(observation, ROWS, axis=0)
+        # print(cropped_frame.shape)  # We've ended up with a 160x160 input...
+        return cropped_frame
+
+
 class ExperienceBuffer(object):
     def __init__(self, capacity, num_frames_stack):
         self.memory = deque(maxlen=capacity)
@@ -125,6 +138,7 @@ if __name__ == "__main__":
     env = gym.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
     env = RandomActionsOnReset(env, MAX_RANDOM_ACTIONS_RESET)
     env = gym.wrappers.RecordEpisodeStatistics(env)
+    env = CroppedBorders(env)
     env = gym.wrappers.ResizeObservation(env, (84, 84))
     env = gym.wrappers.GrayScaleObservation(env)
     env = gym.wrappers.FrameStack(env, NUM_FRAMES_STACK)
