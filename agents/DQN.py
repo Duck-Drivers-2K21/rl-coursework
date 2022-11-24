@@ -19,7 +19,7 @@ GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
 MIN_MEM_SIZE = 80_000
-MAX_MEMORY_SIZE = 700_000
+MAX_MEMORY_SIZE = 1_000_000
 
 UPDATE_FREQ = 4
 NUM_FRAMES_STACK = 4
@@ -79,22 +79,20 @@ class CroppedBorders(gym.Wrapper):
 
 class ExperienceBuffer(object):
     def __init__(self, capacity):
-        #self.memory = deque(maxlen=capacity)
-
         self.max_capacity = capacity + NUM_FRAMES_STACK
 
         self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.single)
-        self.actions = np.ndarray((self.max_capacity, 1), dtype=int)
-        self.rewards = np.ndarray((self.max_capacity, 1), dtype=int)
-        self.dones = np.ndarray((self.max_capacity, 1), dtype=int)
+        self.actions = np.ndarray((self.max_capacity,), dtype=int)
+        self.rewards = np.ndarray((self.max_capacity,), dtype=int)
+        self.dones = np.ndarray((self.max_capacity,), dtype=int)
+
+        self.valid_frame = np.ndarray((self.max_capacity,), dtype=bool)
 
         self.filled = False
         self.counter = 0
         self.new_episode = True
 
     def push(self, state, action, reward, new_state, done):
-        #self.memory.append((state, action, reward, new_state, done))
-
         def increment_counter():
             if self.counter + 1 == self.max_capacity:
                 self.filled = True
@@ -103,40 +101,49 @@ class ExperienceBuffer(object):
         if self.new_episode:
             for frame_num in range(NUM_FRAMES_STACK):
                 self.frames[self.counter] = np.asarray(state)[frame_num]
-                self.actions[self.counter] = action
-                self.rewards[self.counter] = reward
-                self.dones[self.counter] = done
+                self.valid_frame[self.counter] = False
                 increment_counter()
+            for frame_num in range(NUM_FRAMES_STACK):
+                self.valid_frame[self.counter + frame_num] = False
+
+        self.valid_frame[self.counter - 1] = True
+        self.actions[self.counter - 1] = action
+        self.rewards[self.counter - 1] = reward
+        self.dones[self.counter - 1] = done
 
         self.frames[self.counter] = np.asarray(new_state)[-1]
-        self.actions[self.counter] = action
-        self.rewards[self.counter] = reward
-        self.dones[self.counter] = done
+        self.valid_frame[(self.counter + NUM_FRAMES_STACK - 1) % self.max_capacity] = False
         increment_counter()
 
         self.new_episode = done
 
     def sample(self, num_samples, device):
         if self.filled:
-            indices = (np.random.randint(NUM_FRAMES_STACK - 1, self.max_capacity, size=num_samples) + self.counter) % self.max_capacity
+            indices = np.random.randint(self.max_capacity, size=num_samples)
         else:
             indices = np.random.randint(0, self.counter, size=num_samples)
 
-        next_states = np.ndarray((num_samples, NUM_FRAMES_STACK, 84, 84))
-        states = np.ndarray((num_samples, NUM_FRAMES_STACK, 84, 84))
-        actions = np.ndarray((num_samples,))
-        rewards = np.ndarray((num_samples,))
-        dones = np.ndarray((num_samples,))
+        valid_samples = sum([self.valid_frame[i] for i in indices])
+        next_states = np.ndarray((valid_samples, NUM_FRAMES_STACK, 84, 84))
+        states = np.ndarray((valid_samples, NUM_FRAMES_STACK, 84, 84))
+        actions = np.ndarray((valid_samples,))
+        rewards = np.ndarray((valid_samples,))
+        dones = np.ndarray((valid_samples,))
 
+        invalid_frames_passed = 0
         for sample_num, i in enumerate(indices):
-            frames = np.ndarray((NUM_FRAMES_STACK + 1, 84, 84))
-            for frame in range(NUM_FRAMES_STACK + 1):
-                frames[frame] = self.frames[(i + frame - NUM_FRAMES_STACK + 1) % self.max_capacity]
-            states[sample_num] = frames[:-1]
-            next_states[sample_num] = frames[1:]
-            actions[sample_num] = self.actions[i]
-            rewards[sample_num] = self.rewards[i]
-            dones[sample_num] = self.dones[i]
+            sample_num = sample_num - invalid_frames_passed
+            if self.valid_frame[i]:
+                frames = np.ndarray((NUM_FRAMES_STACK + 1, 84, 84))
+                for frame in range(NUM_FRAMES_STACK + 1):
+                    frames[frame] = self.frames[(i + frame - NUM_FRAMES_STACK + 1) % self.max_capacity]
+                states[sample_num] = frames[:-1]
+                next_states[sample_num] = frames[1:]
+                actions[sample_num] = self.actions[i]
+                rewards[sample_num] = self.rewards[i]
+                dones[sample_num] = self.dones[i]
+            else:
+                invalid_frames_passed += 1
 
         return torch.as_tensor(states, dtype=torch.float, device=device), \
                torch.as_tensor(actions, dtype=torch.int64, device=device), \
