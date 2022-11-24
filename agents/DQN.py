@@ -10,16 +10,16 @@ import numpy as np
 import time
 
 E_START = 1
-E_END = 0.1
-E_STEPS_TO_END = 100000
-MAX_STEPS = 50000000
+E_END = 0.01
+E_STEPS_TO_END = 1_100_000
+MAX_STEPS = 10_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 20_000
-MAX_MEMORY_SIZE = 100_000
+MIN_MEM_SIZE = 80_000
+MAX_MEMORY_SIZE = 700_000
 
 UPDATE_FREQ = 4
 NUM_FRAMES_STACK = 4
@@ -60,7 +60,7 @@ class RandomActionsOnReset(gym.Wrapper):
     def reset(self):
         obs, info = self.env.reset()
         for _ in range(np.random.randint(1, self.max_random_actions + 1)):
-            obs, _, _, _, info = self.env.step(self.env.action_space.sample())
+            obs, _, _, _, info = self.env.step(0)
         return obs, info
 
 
@@ -78,52 +78,74 @@ class CroppedBorders(gym.Wrapper):
 
 
 class ExperienceBuffer(object):
-    def __init__(self, capacity, num_frames_stack):
-        self.memory = deque(maxlen=capacity)
+    def __init__(self, capacity):
+        #self.memory = deque(maxlen=capacity)
 
-        self.max_capacity = capacity + 3
+        self.max_capacity = capacity + NUM_FRAMES_STACK
 
-        self.frames = np.ndarray((self.max_capacity, 84, 84))
-        self.actions = np.ndarray((self.max_capacity, 1))
-        self.rewards = np.ndarray((self.max_capacity, 1))
-        self.dones = np.ndarray((self.max_capacity, 1))
+        self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.single)
+        self.actions = np.ndarray((self.max_capacity, 1), dtype=int)
+        self.rewards = np.ndarray((self.max_capacity, 1), dtype=int)
+        self.dones = np.ndarray((self.max_capacity, 1), dtype=int)
 
-        self.num_frames_stack = num_frames_stack
         self.filled = False
         self.counter = 0
         self.new_episode = True
 
     def push(self, state, action, reward, new_state, done):
-        self.memory.append((state, action, reward, new_state, done))
+        #self.memory.append((state, action, reward, new_state, done))
 
         def increment_counter():
-            self.counter += 1
-            if self.counter >= self.max_capacity:
+            if self.counter + 1 == self.max_capacity:
                 self.filled = True
-                self.counter = 0
+            self.counter = (self.counter + 1) % self.max_capacity
 
         if self.new_episode:
-            for frame_num in range(self.num_frames_stack):
+            for frame_num in range(NUM_FRAMES_STACK):
                 self.frames[self.counter] = np.asarray(state)[frame_num]
+                self.actions[self.counter] = action
+                self.rewards[self.counter] = reward
+                self.dones[self.counter] = done
                 increment_counter()
 
         self.frames[self.counter] = np.asarray(new_state)[-1]
+        self.actions[self.counter] = action
+        self.rewards[self.counter] = reward
+        self.dones[self.counter] = done
         increment_counter()
 
         self.new_episode = done
 
     def sample(self, num_samples, device):
-        sample = random.sample(self.memory, k=num_samples)
-        states = torch.stack([torch.Tensor(np.asarray(s[0])).to(device) for s in sample])
-        actions = torch.tensor([s[1] for s in sample]).to(device)
-        rewards = torch.tensor([s[2] for s in sample]).to(device)
-        next_states = torch.stack([torch.Tensor(np.asarray(s[3])).to(device) for s in sample])
-        dones = torch.tensor([s[4] for s in sample]).to(device)
+        if self.filled:
+            indices = (np.random.randint(NUM_FRAMES_STACK - 1, self.max_capacity, size=num_samples) + self.counter) % self.max_capacity
+        else:
+            indices = np.random.randint(0, self.counter, size=num_samples)
 
-        return states, actions, rewards, next_states, dones
+        next_states = np.ndarray((num_samples, NUM_FRAMES_STACK, 84, 84))
+        states = np.ndarray((num_samples, NUM_FRAMES_STACK, 84, 84))
+        actions = np.ndarray((num_samples,))
+        rewards = np.ndarray((num_samples,))
+        dones = np.ndarray((num_samples,))
+
+        for sample_num, i in enumerate(indices):
+            frames = np.ndarray((NUM_FRAMES_STACK + 1, 84, 84))
+            for frame in range(NUM_FRAMES_STACK + 1):
+                frames[frame] = self.frames[(i + frame - NUM_FRAMES_STACK + 1) % self.max_capacity]
+            states[sample_num] = frames[:-1]
+            next_states[sample_num] = frames[1:]
+            actions[sample_num] = self.actions[i]
+            rewards[sample_num] = self.rewards[i]
+            dones[sample_num] = self.dones[i]
+
+        return torch.as_tensor(states, dtype=torch.float, device=device), \
+               torch.as_tensor(actions, dtype=torch.int64, device=device), \
+               torch.as_tensor(rewards, dtype=torch.int64, device=device), \
+               torch.as_tensor(next_states, dtype=torch.float, device=device), \
+               torch.as_tensor(dones, dtype=torch.int64, device=device)
 
     def __len__(self):
-        return len(self.memory)
+        return self.max_capacity if self.filled else self.counter - 1
 
 
 def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
@@ -133,7 +155,22 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    wandb.init()
+    wandb.init(config={
+        "frameskip": FRAMESKIP,
+        "framestack": NUM_FRAMES_STACK,
+        "epsilon_start": E_START,
+        "epsilon_end": E_END,
+        "epsilon_steps_to_anneal": E_STEPS_TO_END,
+        "gamma": GAMMA,
+        "learning_rate": LEARNING_RATE,
+        "batch_size": BATCH_SIZE,
+        "update_frequency": UPDATE_FREQ,
+        "update_target_net_steps": TARGET_NET_UPDATE_FREQ,
+        "memory_start_training_size": MIN_MEM_SIZE,
+        "memory_max_size": MAX_MEMORY_SIZE,
+        "max_random_actions_on_reset": MAX_RANDOM_ACTIONS_RESET,
+        "seed": SEED
+    })
 
     env = gym.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
     env = RandomActionsOnReset(env, MAX_RANDOM_ACTIONS_RESET)
@@ -151,7 +188,7 @@ if __name__ == "__main__":
     target_net = ConvNetwork(NUM_FRAMES_STACK, env.action_space.n).to(device)
     target_net.load_state_dict(policy_net.state_dict())
 
-    memory = ExperienceBuffer(MAX_MEMORY_SIZE, NUM_FRAMES_STACK)
+    memory = ExperienceBuffer(MAX_MEMORY_SIZE)
     optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 
     start_time = time.time()
@@ -171,9 +208,9 @@ if __name__ == "__main__":
         state = new_state
 
         if "episode" in info.keys():
-            wandb.log({"charts/episodic_return": info["episode"]["r"]})
-            wandb.log({"charts/episodic_length": info["episode"]["l"]})
-            wandb.log({"charts/epsilon": epsilon})
+            wandb.log({"episodic_return": info["episode"]["r"]})
+            wandb.log({"episodic_length": info["episode"]["l"]})
+            wandb.log({"epsilon": epsilon})
             wandb.log({"memory length": len(memory)})
             wandb.log({"steps per second": steps_done / (time.time() - start_time)})
             wandb.log({"steps_done": steps_done})
@@ -188,7 +225,7 @@ if __name__ == "__main__":
 
             with torch.no_grad():
                 next_states_values = target_net(next_states).max(dim=1)[0]
-                target_state_action_values = rewards + ((next_states_values * GAMMA) * (1 - dones.int()))
+                target_state_action_values = rewards + ((next_states_values * GAMMA) * (1 - dones))
 
             loss = nn.MSELoss()(target_state_action_values, state_action_values)
 
