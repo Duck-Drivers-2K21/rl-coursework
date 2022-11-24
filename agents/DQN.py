@@ -10,19 +10,19 @@ import numpy as np
 import time
 
 E_START = 1
-E_END = 0.1
-E_STEPS_TO_END = 100000
-MAX_STEPS = 50000000
+E_END = 0.01
+E_STEPS_TO_END = 1_000_000
+MAX_STEPS = 25_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 20_000
-MAX_MEMORY_SIZE = 100_000
+MIN_MEM_SIZE = 25_000
+MAX_MEMORY_SIZE = 500_000
 
 UPDATE_FREQ = 4
-NUM_FRAMES_STACK = 4
+NUM_FRAMES_STACK = 1  # 2  # 4
 MAX_RANDOM_ACTIONS_RESET = 30
 FRAMESKIP = 4
 
@@ -52,21 +52,26 @@ class ConvNetwork(nn.Module):
         return self.conv(x / 255.0)
 
 
-class RandomActionsOnReset(gym.Wrapper):
-    def __init__(self, env, max_random_actions):
-        super(RandomActionsOnReset, self).__init__(env)
-        self.max_random_actions = max_random_actions
+class NoopOnReset(gym.Wrapper):
+    def __init__(self, env, max_noop):
+        super(NoopOnReset, self).__init__(env)
+        self.max_noop = max_noop
 
     def reset(self):
         obs, info = self.env.reset()
-        for _ in range(np.random.randint(1, self.max_random_actions + 1)):
-            obs, _, _, _, info = self.env.step(self.env.action_space.sample())
+        for _ in range(np.random.randint(1, self.max_noop + 1)):
+            obs, _, _, _, info = self.env.step(0)
         return obs, info
 
 
-class CroppedBorders(gym.Wrapper):
+# matplotlib plot.plot
+# TODO: Add frame squishing....
+
+class CroppedBorders(gym.ObservationWrapper):
     def __init__(self, env):
         super(CroppedBorders, self).__init__(env)
+        obs_shape = (160, 160) + env.observation_space.shape[2:]
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
 
     def _preprocess_frame(observation: np.ndarray) -> np.ndarray:
         # Remove scores and cut unecessary whitespace...
@@ -76,6 +81,40 @@ class CroppedBorders(gym.Wrapper):
         # print(cropped_frame.shape)  # We've ended up with a 160x160 input...
         return cropped_frame
 
+    def observation(self, observation):
+        return CroppedBorders._preprocess_frame(observation)
+
+
+class SquishyFrames(gym.ObservationWrapper):
+    def __init__(self, env, num_frames):
+        super(SquishyFrames, self).__init__(env)
+        self.num_frames = num_frames
+        obs_shape = env.observation_space.shape[1:]
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+
+    def observation(self, observation):
+        return ((0.3 * observation[0]) + (0.7 * observation[1])).astype(np.uint8)
+
+class SquishyFramesv2(gym.ObservationWrapper):
+    def __init__(self, env: gym.Env, num_frames: int):
+        super().__init__(env)
+        self.num_frames = num_frames
+        self.frames = deque(maxlen=num_frames)
+
+    def observation(self, observation):
+        # TODO: rework if num_frames != 2
+        return (((0.3 * self.frames[0]) + (0.7 * self.frames[1])).astype(np.uint8)).T
+
+    def step(self, action):
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        self.frames.append(observation)
+        return self.observation(None), reward, terminated, truncated, info
+
+    def reset(self, **kwargs):
+        observation, info = self.env.reset(**kwargs)
+        for _ in range(self.num_frames):
+            self.frames.append(observation)
+        return self.observation(None), info
 
 class ExperienceBuffer(object):
     def __init__(self, capacity, num_frames_stack):
@@ -130,18 +169,19 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
     proportion_done = min((steps_done + 1) / (e_steps_to_anneal + 1), 1)
     return (proportion_done * (e_end - e_start)) + e_start
 
+# from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    wandb.init()
-
-    env = gym.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
-    env = RandomActionsOnReset(env, MAX_RANDOM_ACTIONS_RESET)
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    print(f"Running on {device}.")
+    wandb.init(project="croptopsallround", entity="cage-boys")
+    env = gym.make("ALE/Pong-v5", render_mode="rgb_array")
+    env = NoopOnReset(env, MAX_RANDOM_ACTIONS_RESET)
     env = gym.wrappers.RecordEpisodeStatistics(env)
+    env = gym.wrappers.GrayScaleObservation(env)
     env = CroppedBorders(env)
     env = gym.wrappers.ResizeObservation(env, (84, 84))
-    env = gym.wrappers.GrayScaleObservation(env)
-    env = gym.wrappers.FrameStack(env, NUM_FRAMES_STACK)
+    env = SquishyFramesv2(env, 2)
     env.action_space.seed(SEED)
     env.observation_space.seed(SEED)
 
@@ -167,7 +207,6 @@ if __name__ == "__main__":
         new_state, reward, done, trunc, info = env.step(action)
 
         memory.push(state, action, reward, new_state, done)
-
         state = new_state
 
         if "episode" in info.keys():
