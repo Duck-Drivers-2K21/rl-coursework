@@ -10,7 +10,7 @@ import time
 E_START = 1
 E_END = 0.01
 E_STEPS_TO_END = 1_100_000
-MAX_STEPS = 10_000_000
+MAX_STEPS = 5_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
@@ -79,10 +79,10 @@ class ExperienceBuffer(object):
     def __init__(self, capacity):
         self.max_capacity = capacity + NUM_FRAMES_STACK
 
-        self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.ubyte)
-        self.actions = np.ndarray((self.max_capacity,), dtype=np.byte)
-        self.rewards = np.ndarray((self.max_capacity,), dtype=np.byte)
-        self.dones = np.ndarray((self.max_capacity,), dtype=np.byte)
+        self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.uint8)
+        self.actions = np.ndarray((self.max_capacity,), dtype=int)
+        self.rewards = np.ndarray((self.max_capacity,), dtype=int)
+        self.dones = np.ndarray((self.max_capacity,), dtype=int)
 
         self.valid_frame = np.ndarray((self.max_capacity,), dtype=bool)
 
@@ -122,11 +122,11 @@ class ExperienceBuffer(object):
             indices = np.random.randint(0, self.counter, size=num_samples)
 
         valid_samples = sum([self.valid_frame[i] for i in indices])
-        next_states = np.ndarray((valid_samples, NUM_FRAMES_STACK, 84, 84))
-        states = np.ndarray((valid_samples, NUM_FRAMES_STACK, 84, 84))
-        actions = np.ndarray((valid_samples,))
-        rewards = np.ndarray((valid_samples,))
-        dones = np.ndarray((valid_samples,))
+        next_states = np.ndarray((valid_samples, NUM_FRAMES_STACK, 84, 84), dtype=float)
+        states = np.ndarray((valid_samples, NUM_FRAMES_STACK, 84, 84), dtype=float)
+        actions = np.ndarray((valid_samples,), dtype=int)
+        rewards = np.ndarray((valid_samples,), dtype=int)
+        dones = np.ndarray((valid_samples,), dtype=int)
 
         invalid_frames_passed = 0
         for sample_num, i in enumerate(indices):
@@ -215,6 +215,8 @@ if __name__ == "__main__":
         state = new_state
 
         if "episode" in info.keys():
+
+
             wandb.log({"episodic_return": info["episode"]["r"]})
             wandb.log({"episodic_length": info["episode"]["l"]})
             wandb.log({"epsilon": epsilon})
