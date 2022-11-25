@@ -79,10 +79,10 @@ class ExperienceBuffer(object):
     def __init__(self, capacity):
         self.max_capacity = capacity + NUM_FRAMES_STACK
 
-        self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.single)
-        self.actions = np.ndarray((self.max_capacity,), dtype=int)
-        self.rewards = np.ndarray((self.max_capacity,), dtype=int)
-        self.dones = np.ndarray((self.max_capacity,), dtype=int)
+        self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.ubyte)
+        self.actions = np.ndarray((self.max_capacity,), dtype=np.byte)
+        self.rewards = np.ndarray((self.max_capacity,), dtype=np.byte)
+        self.dones = np.ndarray((self.max_capacity,), dtype=np.byte)
 
         self.valid_frame = np.ndarray((self.max_capacity,), dtype=bool)
 
