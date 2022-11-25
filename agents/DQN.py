@@ -1,7 +1,5 @@
-from collections import deque
-
 import random
-import gym
+import gymnasium
 import wandb
 import torch
 import torch.optim as optim
@@ -23,7 +21,7 @@ MAX_MEMORY_SIZE = 1_000_000
 
 UPDATE_FREQ = 4
 NUM_FRAMES_STACK = 4
-MAX_RANDOM_ACTIONS_RESET = 30
+MAX_NOOPS = 30
 FRAMESKIP = 4
 
 TARGET_NET_UPDATE_FREQ = 1_000
@@ -52,19 +50,19 @@ class ConvNetwork(nn.Module):
         return self.conv(x / 255.0)
 
 
-class RandomActionsOnReset(gym.Wrapper):
-    def __init__(self, env, max_random_actions):
-        super(RandomActionsOnReset, self).__init__(env)
-        self.max_random_actions = max_random_actions
+class NoopsOnReset(gymnasium.Wrapper):
+    def __init__(self, env, max_noops):
+        super(NoopsOnReset, self).__init__(env)
+        self.max_noops = max_noops
 
     def reset(self):
         obs, info = self.env.reset()
-        for _ in range(np.random.randint(1, self.max_random_actions + 1)):
+        for _ in range(np.random.randint(1, self.max_noops + 1)):
             obs, _, _, _, info = self.env.step(0)
         return obs, info
 
 
-class CroppedBorders(gym.Wrapper):
+class CroppedBorders(gymnasium.Wrapper):
     def __init__(self, env):
         super(CroppedBorders, self).__init__(env)
 
@@ -175,17 +173,18 @@ if __name__ == "__main__":
         "update_target_net_steps": TARGET_NET_UPDATE_FREQ,
         "memory_start_training_size": MIN_MEM_SIZE,
         "memory_max_size": MAX_MEMORY_SIZE,
-        "max_random_actions_on_reset": MAX_RANDOM_ACTIONS_RESET,
+        "max_noops": MAX_NOOPS,
         "seed": SEED
     })
 
-    env = gym.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
-    env = RandomActionsOnReset(env, MAX_RANDOM_ACTIONS_RESET)
-    env = gym.wrappers.RecordEpisodeStatistics(env)
+    env = gymnasium.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
+    env = gymnasium.wrappers.RecordVideo(env, "videos", episode_trigger=lambda x: x % 100 == 0)
+    env = NoopsOnReset(env, MAX_NOOPS)
+    env = gymnasium.wrappers.RecordEpisodeStatistics(env)
     env = CroppedBorders(env)
-    env = gym.wrappers.ResizeObservation(env, (84, 84))
-    env = gym.wrappers.GrayScaleObservation(env)
-    env = gym.wrappers.FrameStack(env, NUM_FRAMES_STACK)
+    env = gymnasium.wrappers.ResizeObservation(env, (84, 84))
+    env = gymnasium.wrappers.GrayScaleObservation(env)
+    env = gymnasium.wrappers.FrameStack(env, NUM_FRAMES_STACK)
     env.action_space.seed(SEED)
     env.observation_space.seed(SEED)
 
@@ -201,6 +200,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     steps_done = 0
+    episode = 0
     while steps_done < MAX_STEPS:
         epsilon = calc_epsilon(E_START, E_END, E_STEPS_TO_END, steps_done)
         action = env.action_space.sample()
@@ -223,6 +223,9 @@ if __name__ == "__main__":
             wandb.log({"steps_done": steps_done})
 
         if done:
+            if (episode % 100) == 0:
+                wandb.log({"video": wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")})
+            episode += 1
             state, info = env.reset()
 
         if len(memory) >= MIN_MEM_SIZE and steps_done % UPDATE_FREQ == 0:
