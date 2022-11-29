@@ -9,14 +9,14 @@ import time
 
 E_START = 1
 E_END = 0.01
-E_STEPS_TO_END = 1_100_000
+E_STEPS_TO_END = 500_000
 MAX_STEPS = 5_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 80_000
+MIN_MEM_SIZE = 50_000
 MAX_MEMORY_SIZE = 1_000_000
 
 UPDATE_FREQ = 4
@@ -41,13 +41,29 @@ class ConvNetwork(nn.Module):
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             nn.ReLU(),
             nn.Flatten(),
+        )
+
+        self.value = nn.Sequential(
+            nn.Linear(3136, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
+
+        self.actions = nn.Sequential(
             nn.Linear(3136, 512),
             nn.ReLU(),
             nn.Linear(512, out_channels),
         )
 
+
     def forward(self, x):
-        return self.conv(x / 255.0)
+        conv_vals = self.conv(x / 255.0)
+        state_values = self.value(conv_vals)
+        action_values = self.actions(conv_vals)
+
+        q_values = state_values + (action_values - action_values.mean())
+
+        return q_values
 
 
 class NoopsOnReset(gymnasium.Wrapper):
@@ -217,7 +233,6 @@ if __name__ == "__main__":
         if "episode" in info.keys():
 
 
-
             wandb.log({"episodic_return": info["episode"]["r"]})
             wandb.log({"episodic_length": info["episode"]["l"]})
             wandb.log({"epsilon": epsilon})
@@ -238,7 +253,8 @@ if __name__ == "__main__":
             state_action_values = policy_net(states).gather(1, actions.unsqueeze(1)).squeeze()
 
             with torch.no_grad():
-                next_states_values = target_net(next_states).max(dim=1)[0]
+                best_actions = policy_net(next_states).max(dim=1)[1]
+                next_states_values = target_net(next_states).gather(1, best_actions.unsqueeze(1)).squeeze()
                 target_state_action_values = rewards + ((next_states_values * GAMMA) * (1 - dones))
 
             loss = nn.MSELoss()(target_state_action_values, state_action_values)

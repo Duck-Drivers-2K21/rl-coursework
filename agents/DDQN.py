@@ -9,14 +9,14 @@ import time
 
 E_START = 1
 E_END = 0.01
-E_STEPS_TO_END = 1_100_000
+E_STEPS_TO_END = 500_000
 MAX_STEPS = 5_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 80_000
+MIN_MEM_SIZE = 50_000
 MAX_MEMORY_SIZE = 1_000_000
 
 UPDATE_FREQ = 4
@@ -217,7 +217,6 @@ if __name__ == "__main__":
         if "episode" in info.keys():
 
 
-
             wandb.log({"episodic_return": info["episode"]["r"]})
             wandb.log({"episodic_length": info["episode"]["l"]})
             wandb.log({"epsilon": epsilon})
@@ -238,7 +237,8 @@ if __name__ == "__main__":
             state_action_values = policy_net(states).gather(1, actions.unsqueeze(1)).squeeze()
 
             with torch.no_grad():
-                next_states_values = target_net(next_states).max(dim=1)[0]
+                best_actions = policy_net(next_states).max(dim=1)[1]
+                next_states_values = target_net(next_states).gather(1, best_actions.unsqueeze(1)).squeeze()
                 target_state_action_values = rewards + ((next_states_values * GAMMA) * (1 - dones))
 
             loss = nn.MSELoss()(target_state_action_values, state_action_values)
