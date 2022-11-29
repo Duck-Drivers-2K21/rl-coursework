@@ -18,8 +18,8 @@ BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 2_000
-MAX_MEMORY_SIZE = 10_000
+MIN_MEM_SIZE = 20_000
+MAX_MEMORY_SIZE = 100_000
 
 UPDATE_FREQ = 4
 NUM_FRAMES_STACK = 4
@@ -67,6 +67,10 @@ class RandomActionsOnReset(gym.Wrapper):
 class ExperienceBuffer(object):
     def __init__(self, capacity, num_frames_stack):
         self.memory = deque(maxlen=capacity)
+        self.frames = np.ndarray((capacity, 84, 84))
+        self.actions = np.ndarray((capacity, 1))
+        self.rewards = np.ndarray((capacity, 1))
+        self.dones = np.ndarray((capacity, 1))
 
         self.max_capacity = capacity + 3
         self.num_frames_stack = num_frames_stack
@@ -76,6 +80,22 @@ class ExperienceBuffer(object):
 
     def push(self, state, action, reward, new_state, done):
         self.memory.append((state, action, reward, new_state, done))
+
+        def increment_counter():
+            self.counter += 1
+            if self.counter >= self.max_capacity:
+                self.filled = True
+                self.counter = 0
+
+        if self.new_episode:
+            for frame_num in range(self.num_frames_stack):
+                self.frames[self.counter] = np.asarray(state)[frame_num]
+                increment_counter()
+
+        self.frames[self.counter] = np.asarray(new_state)[-1]
+        increment_counter()
+
+        self.new_episode = done
 
     def sample(self, num_samples, device):
         sample = random.sample(self.memory, k=num_samples)
