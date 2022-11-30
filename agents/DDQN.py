@@ -2,13 +2,14 @@ import random
 from collections import deque
 import time
 
-import torch
-import wandb
-wandb.init(project="oHMYGOD")
-import numpy as np
+import random
 import gym
+import wandb
+import torch
+import torch.optim as optim
 import torch.nn as nn
-from torch import optim
+import numpy as np
+import time
 
 LEARNING_RATE = 1e-4
 TARGET_NET_UPDATE_FREQ = 1_000
@@ -67,13 +68,14 @@ class RandomActionsOnReset(gym.Wrapper):
         self.max_random_actions = max_random_actions
 
     def reset(self):
-        obs = self.env.reset()
+        obs, info = self.env.reset()
         for _ in range(np.random.randint(1, self.max_random_actions + 1)):
-            obs, _, _, info = self.env.step(self.env.action_space.sample())
-        return obs
+            obs = self.env.step(self.env.action_space.sample())[0]
+        return obs, info
 
 
 def run():
+    wandb.init(project="oHMYGOD")
     env = gym.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=4, repeat_action_probability=0)
     env = RandomActionsOnReset(env, 30)
     env = gym.wrappers.RecordEpisodeStatistics(env)
@@ -82,6 +84,8 @@ def run():
     env = gym.wrappers.FrameStack(env, 4)
     env.action_space.seed(42)
     env.observation_space.seed(42)
+
+    state, info = env.reset()
 
     start_time = time.time()
 
@@ -112,14 +116,27 @@ def run():
     count = 0
     n_actions = env.action_space.n
 
-    q_network = QNetwork(n_actions)
-    target_network = QNetwork(n_actions)
-    policy_network = QNetwork(n_actions)
-    target_network.load_state_dict(policy_network.state_dict())
-    optimizer = optim.Adam(policy_network.parameters(), lr=LEARNING_RATE)
-    state = env.reset()
+    target_network_1 = QNetwork(n_actions)
+    target_network_2 = QNetwork(n_actions)
+
+    policy_network_1 = QNetwork(n_actions)
+    policy_network_2 = QNetwork(n_actions)
+
+    target_network_1.load_state_dict(policy_network_1.state_dict())
+    target_network_2.load_state_dict(policy_network_2.state_dict())
+
+    optimizer_1 = optim.Adam(policy_network_1.parameters(), lr=LEARNING_RATE)
+    optimizer_2 = optim.Adam(policy_network_1.parameters(), lr=LEARNING_RATE)
+
     episode = 0
     while True:
+        # Select which networks to use (DDQN)
+        even_count = (count % 2 == 0)
+        policy_network, other_policy_network = ((policy_network_1, policy_network_2) if even_count
+                                                else (policy_network_2, policy_network_1))
+        target_network = target_network_1 if even_count else target_network_2
+        optimizer = optimizer_1 if even_count else optimizer_2
+
         # Decrease epsilon each tick, until we reach min epsilon
         epsilon = max(min_epsilon,
                       max_epsilon - (d_epsilon * count))
@@ -132,7 +149,7 @@ def run():
             s = torch.Tensor(np.asarray(state)).to(device).unsqueeze(0)
             action = torch.argmax(policy_network(s), dim=1).cpu().numpy()[0]
 
-        next_state, reward, terminal, info = env.step(action)
+        next_state, reward, terminal, _, info = env.step(action)
 
         if "episode" in info.keys():
             wandb.log({"episodic_return": info["episode"]["r"]})
@@ -146,7 +163,7 @@ def run():
             # if (episode % 100) == 0:
             #     wandb.log({"video": wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")})
             episode += 1
-            state = env.reset()
+            state = env.reset()[0]
 
         # Save this new info to the Replay buffer
         rb.push(state, action, reward, next_state, terminal)
@@ -155,18 +172,23 @@ def run():
             # get sample data from replay buffer
             states, batch_action, batch_reward, batch_ns, batch_done = rb.sample(batch_size, device)
 
-            state_action_values = policy_network(states).gather(1, batch_action.unsqueeze(1)).squeeze()
+            # Get the State-action pair values from the Policy Network
+            policy_state_action_values = policy_network(states).gather(1, batch_action.unsqueeze(1)).squeeze()
 
             # Disable torch gradients
             with torch.no_grad():
-                # Tensor of state-action values
-                target_max = target_network(states).max(dim=1).values
+                best_actions = torch.argmax(other_policy_network(states), dim=1).unsqueeze(-1)
+
+                # Get the state-action pair values from the Target Network
+                target_max = target_network(states).gather(1, best_actions).squeeze(1)
 
                 # 0 if state is terminal, 1 if not
                 done_mask = 1 - batch_done.int()
-                td_target = batch_reward + (gamma * target_max * done_mask)
 
-            loss = nn.MSELoss()(td_target, state_action_values)
+                target_network_TD = batch_reward + (gamma * target_max * done_mask)
+
+            # Calculate the Loss between the real stat
+            loss = nn.MSELoss()(target_network_TD, policy_state_action_values)
 
             optimizer.zero_grad()
             loss.backward()
