@@ -9,14 +9,14 @@ import time
 
 E_START = 1
 E_END = 0.01
-E_STEPS_TO_END = 1_100_000
+E_STEPS_TO_END = 500_000
 MAX_STEPS = 5_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 80_000
+MIN_MEM_SIZE = 50_000
 MAX_MEMORY_SIZE = 1_000_000
 
 UPDATE_FREQ = 4
@@ -102,7 +102,7 @@ class ExperienceBuffer(object):
                 self.valid_frame[self.counter] = False
                 increment_counter()
             for frame_num in range(NUM_FRAMES_STACK):
-                self.valid_frame[self.counter + frame_num] = False
+                self.valid_frame[(self.counter + frame_num) % self.max_capacity] = False
 
         self.valid_frame[self.counter - 1] = True
         self.actions[self.counter - 1] = action
@@ -144,10 +144,10 @@ class ExperienceBuffer(object):
                 invalid_frames_passed += 1
 
         return torch.as_tensor(states, dtype=torch.float, device=device), \
-               torch.as_tensor(actions, dtype=torch.int64, device=device), \
-               torch.as_tensor(rewards, dtype=torch.int64, device=device), \
-               torch.as_tensor(next_states, dtype=torch.float, device=device), \
-               torch.as_tensor(dones, dtype=torch.int64, device=device)
+            torch.as_tensor(actions, dtype=torch.int64, device=device), \
+            torch.as_tensor(rewards, dtype=torch.int64, device=device), \
+            torch.as_tensor(next_states, dtype=torch.float, device=device), \
+            torch.as_tensor(dones, dtype=torch.int64, device=device)
 
     def __len__(self):
         return self.max_capacity if self.filled else self.counter - 1
@@ -160,7 +160,7 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    wandb.init(config={
+    wandb.init(project="final-runs", config={
         "frameskip": FRAMESKIP,
         "framestack": NUM_FRAMES_STACK,
         "epsilon_start": E_START,
@@ -214,21 +214,20 @@ if __name__ == "__main__":
 
         state = new_state
 
+        log_info = {}
+
         if "episode" in info.keys():
-
-
-
-            wandb.log({"episodic_return": info["episode"]["r"]})
-            wandb.log({"episodic_length": info["episode"]["l"]})
-            wandb.log({"epsilon": epsilon})
-            wandb.log({"memory length": len(memory)})
-            wandb.log({"steps per second": steps_done / (time.time() - start_time)})
-            wandb.log({"steps_done": steps_done})
+            log_info = {"episodic_return": info["episode"]["r"],
+                        "episodic_length": info["episode"]["l"],
+                        "epsilon": epsilon,
+                        "memory length": len(memory),
+                        "steps per second": steps_done / (time.time() - start_time),
+                        }
 
         if done:
             if (episode % 100) == 0:
                 torch.save(policy_net.state_dict(), "latest_model.nn")
-                wandb.log({"video": wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")})
+                log_info["video"] = wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")
             episode += 1
             state, info = env.reset()
 
@@ -243,13 +242,16 @@ if __name__ == "__main__":
 
             loss = nn.MSELoss()(target_state_action_values, state_action_values)
 
-            if steps_done % (100 * UPDATE_FREQ) == 0:
-                wandb.log({"td_loss": loss})
-                wandb.log({"q_values": state_action_values.mean().item()})
+            log_info["loss"] = loss
+            log_info["q_values"] = state_action_values.mean().item()
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+        if len(log_info) != 0:
+            log_info["steps_done"] = steps_done
+            wandb.log(log_info)
 
         if steps_done % TARGET_NET_UPDATE_FREQ == 0:
             target_net.load_state_dict(policy_net.state_dict())
