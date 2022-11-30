@@ -89,8 +89,8 @@ def run():
 
     start_time = time.time()
 
-    min_buffer_size_to_learn = 1e3
-    train_freq = 5
+    min_buffer_size_to_learn = 80_000
+    train_freq = 4
     batch_size = int(1e2)
     gamma = 0.9
     use_cuda = True
@@ -104,8 +104,7 @@ def run():
 
     print(f"Using {device}.")
 
-    # rb = ReplayBuffer(int(5e5), obs_size)
-    rb = ExperienceBuffer(int(5e5), 4)
+    rb = ExperienceBuffer(int(1_000_000), 4)
 
     # Epsilon params
     max_epsilon = 0.95
@@ -116,11 +115,11 @@ def run():
     count = 0
     n_actions = env.action_space.n
 
-    target_network_1 = QNetwork(n_actions)
-    target_network_2 = QNetwork(n_actions)
+    target_network_1 = QNetwork(n_actions).to(device)
+    target_network_2 = QNetwork(n_actions).to(device)
 
-    policy_network_1 = QNetwork(n_actions)
-    policy_network_2 = QNetwork(n_actions)
+    policy_network_1 = QNetwork(n_actions).to(device)
+    policy_network_2 = QNetwork(n_actions).to(device)
 
     target_network_1.load_state_dict(policy_network_1.state_dict())
     target_network_2.load_state_dict(policy_network_2.state_dict())
@@ -195,7 +194,8 @@ def run():
             optimizer.step()
 
         if count % TARGET_NET_UPDATE_FREQ == 0:
-            target_network.load_state_dict(policy_network.state_dict())
+            target_network_1.load_state_dict(policy_network_1.state_dict())
+            target_network_2.load_state_dict(policy_network_2.state_dict())
 
         # Setup for next iterations
         state = next_state
