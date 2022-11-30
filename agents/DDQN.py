@@ -125,7 +125,7 @@ def run():
     target_network_2.load_state_dict(policy_network_2.state_dict())
 
     optimizer_1 = optim.Adam(policy_network_1.parameters(), lr=LEARNING_RATE)
-    optimizer_2 = optim.Adam(policy_network_1.parameters(), lr=LEARNING_RATE)
+    optimizer_2 = optim.Adam(policy_network_2.parameters(), lr=LEARNING_RATE)
 
     episode = 0
     while True:
