@@ -8,17 +8,16 @@ import numpy as np
 import time
 from collections import deque
 
-
 E_START = 1
 E_END = 0.01
-E_STEPS_TO_END = 1_100_000
+E_STEPS_TO_END = 500_000
 MAX_STEPS = 5_000_000
 
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
 
-MIN_MEM_SIZE = 80_000
+MIN_MEM_SIZE = 50_000
 MAX_MEMORY_SIZE = 1_000_000
 
 UPDATE_FREQ = 4
@@ -34,6 +33,7 @@ SEED = 1
 class ConvNetwork(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
+
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=32, kernel_size=8, stride=4),
             nn.ReLU(),
@@ -63,26 +63,44 @@ class NoopsOnReset(gymnasium.Wrapper):
         return obs, info
 
 
-class CroppedBorders(gymnasium.ObservationWrapper):
-    def __init__(self, env: gymnasium.Env):
-        super().__init__(env)
-        obs_shape = (160, 160) + env.observation_space.shape[2:]
-        self.observation_space = gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+class CroppedBorders(gymnasium.Wrapper):
+    def __init__(self, env):
+        super(CroppedBorders, self).__init__(env)
 
     def _preprocess_frame(observation: np.ndarray) -> np.ndarray:
         # Remove scores and cut unecessary whitespace...
-        assert observation.shape == (210, 160, 3), "Sizes don't match..." + str(observation.shape)
+        assert observation.shape == (210, 160), "Sizes don't match..."
         ROWS = [194 + j for j in range(16)] + [i for i in range(34)]
         cropped_frame = np.delete(observation, ROWS, axis=0)
+        # print(cropped_frame.shape)  # We've ended up with a 160x160 input...
         return cropped_frame
 
-    def observation(self, observation: np.ndarray) -> np.ndarray:
-        return CroppedBorders._preprocess_frame(observation)
+class SquishyFrames(gymnasium.ObservationWrapper):
+    def __init__(self, env: gymnasium.Env, num_frames: int = 2):
+        super().__init__(env)
+        self.num_frames = num_frames
+        self.frames = deque(maxlen=self.num_frames)
+
+    def observation(self, observation = None):
+        # TODO: rework if num_frames != 2
+        return (((0.3 * self.frames[0]) + (0.7 * self.frames[1])).astype(np.uint8))
+
+    def step(self, action: int):
+        obs, reward, terminal, truncated, info = self.env.step(action)
+        self.frames.append(obs)
+        return self.observation(), reward, terminal, truncated, info
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        for _ in range(self.num_frames):
+            self.frames.append(obs)
+        return self.observation(), info
+
 
 
 class ExperienceBuffer(object):
     def __init__(self, capacity):
-        self.max_capacity = capacity
+        self.max_capacity = capacity + NUM_FRAMES_STACK
 
         self.frames = np.ndarray((self.max_capacity, 84, 84), dtype=np.uint8)
         self.actions = np.ndarray((self.max_capacity,), dtype=int)
@@ -163,27 +181,6 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
     return (proportion_done * (e_end - e_start)) + e_start
 
 
-class SquishyFrames(gymnasium.ObservationWrapper):
-    def __init__(self, env: gymnasium.Env, num_frames: int = 2):
-        super().__init__(env)
-        self.num_frames = num_frames
-        self.frames = deque(maxlen=self.num_frames)
-
-    def observation(self, observation = None):
-        # TODO: rework if num_frames != 2
-        return (((0.3 * self.frames[0]) + (0.7 * self.frames[1])).astype(np.uint8))
-
-    def step(self, action: int):
-        obs, reward, terminal, truncated, info = self.env.step(action)
-        self.frames.append(obs)
-        return self.observation(), reward, terminal, truncated, info
-
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        for _ in range(self.num_frames):
-            self.frames.append(obs)
-        return self.observation(), info
-
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Running on {device}.")
@@ -233,7 +230,7 @@ if __name__ == "__main__":
         epsilon = calc_epsilon(E_START, E_END, E_STEPS_TO_END, steps_done)
         action = env.action_space.sample()
         if random.random() > epsilon:
-            s = torch.Tensor(np.asarray(state)).to(device).unsqueeze(0)
+            s = torch.Tensor(np.asarray(state)).to(device).unsqueeze(0).unsqueeze(0)
             action = torch.argmax(policy_net(s), dim=1).cpu().numpy()[0]
 
         new_state, reward, done, trunc, info = env.step(action)
