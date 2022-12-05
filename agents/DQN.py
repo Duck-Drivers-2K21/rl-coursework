@@ -159,7 +159,7 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
 
 
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     wandb.init(config={
         "frameskip": FRAMESKIP,
         "framestack": NUM_FRAMES_STACK,

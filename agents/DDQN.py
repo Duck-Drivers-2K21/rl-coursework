@@ -3,7 +3,7 @@ from collections import deque
 import time
 
 import random
-import gym
+import gymnasium
 import wandb
 import torch
 import torch.optim as optim
@@ -62,7 +62,7 @@ class ExperienceBuffer(object):
         return len(self.memory)
 
 
-class RandomActionsOnReset(gym.Wrapper):
+class RandomActionsOnReset(gymnasium.Wrapper):
     def __init__(self, env, max_random_actions):
         super(RandomActionsOnReset, self).__init__(env)
         self.max_random_actions = max_random_actions
@@ -76,12 +76,12 @@ class RandomActionsOnReset(gym.Wrapper):
 
 def run():
     wandb.init(project="oHMYGOD")
-    env = gym.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=4, repeat_action_probability=0)
+    env = gymnasium.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=4, repeat_action_probability=0)
     env = RandomActionsOnReset(env, 30)
-    env = gym.wrappers.RecordEpisodeStatistics(env)
-    env = gym.wrappers.ResizeObservation(env, (84, 84))
-    env = gym.wrappers.GrayScaleObservation(env)
-    env = gym.wrappers.FrameStack(env, 4)
+    env = gymnasium.wrappers.RecordEpisodeStatistics(env)
+    env = gymnasium.wrappers.ResizeObservation(env, (84, 84))
+    env = gymnasium.wrappers.GrayScaleObservation(env)
+    env = gymnasium.wrappers.FrameStack(env, 4)
     env.action_space.seed(42)
     env.observation_space.seed(42)
 
@@ -100,7 +100,7 @@ def run():
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    device = torch.device("cuda" if torch.cuda.is_available() and use_cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
     print(f"Using {device}.")
 
