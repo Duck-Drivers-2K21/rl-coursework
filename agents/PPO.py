@@ -69,19 +69,20 @@ class Network(nn.Module):
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
 
-class PPOAgent():
+class PPOAgent:
 
     def __init__(self, envs, args, device):
         self.args = args
         self.network = Network(self.args['num_frames_stack'],
                                self.args['learning_rate']).to(device)
 
-        self.states = torch.zeros((args['num_steps'], args['num_env']) + envs.single_observation_space.shape).to(device)
-        self.actions = torch.zeros((args['num_steps'], args['num_env'])).to(device)
-        self.logprobs = torch.zeros((args['num_steps'], args['num_env'])).to(device)
-        self.rewards = torch.zeros((args['num_steps'], args['num_env'])).to(device)
-        self.dones = torch.zeros((args['num_steps'], args['num_env'])).to(device)
-        self.values = torch.zeros((args['num_steps'], args['num_env'])).to(device)
+        self.states = torch.zeros((self.args['num_steps'], self.args['num_env']) + envs.single_observation_space.shape)\
+            .to(device)
+        self.actions = torch.zeros((self.args['num_steps'], self.args['num_env'])).to(device)
+        self.logprobs = torch.zeros((self.args['num_steps'], self.args['num_env'])).to(device)
+        self.rewards = torch.zeros((self.args['num_steps'], self.args['num_env'])).to(device)
+        self.dones = torch.zeros((self.args['num_steps'], self.args['num_env'])).to(device)
+        self.values = torch.zeros((self.args['num_steps'], self.args['num_env'])).to(device)
 
     def rollout(self, curr_states, curr_dones, step):
         self.states[step] = curr_states
