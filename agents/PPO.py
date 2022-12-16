@@ -96,9 +96,8 @@ class PPOAgent:
 
         new_next_states, reward, new_dones, _, new_info = envs.step(action.cpu().numpy())
         self.rewards[step] = torch.tensor(reward).to(device).view(-1)
-        next_states_tensor = torch.Tensor(new_next_states).to(device)
-        next_done_tensor = torch.Tensor(new_dones).to(device)
-
+        next_states_tensor = torch.tensor(new_next_states).to(device)
+        next_done_tensor = torch.tensor(new_dones, dtype=float).to(device)
         return next_states_tensor, next_done_tensor, new_info
 
     # find the expected return - actual return
@@ -222,7 +221,7 @@ if __name__ == "__main__":
     # game start
     global_step = 0
     start_time = time.time()
-    next_states = torch.Tensor(envs.reset()[0]).to(device)
+    next_states = torch.tensor(envs.reset()[0]).to(device)
     next_done = torch.zeros(args["num_env"]).to(device)
     num_updates = args['total_timesteps'] // args['batch_size']
 
