@@ -6,6 +6,8 @@ import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 import time
+from wrappers import CroppedBorders, NoopsOnReset
+
 
 E_START = 1
 E_END = 0.01
@@ -48,31 +50,6 @@ class ConvNetwork(nn.Module):
 
     def forward(self, x):
         return self.conv(x / 255.0)
-
-
-class NoopsOnReset(gymnasium.Wrapper):
-    def __init__(self, env, max_noops):
-        super(NoopsOnReset, self).__init__(env)
-        self.max_noops = max_noops
-
-    def reset(self):
-        obs, info = self.env.reset()
-        for _ in range(np.random.randint(1, self.max_noops + 1)):
-            obs, _, _, _, info = self.env.step(0)
-        return obs, info
-
-
-class CroppedBorders(gymnasium.Wrapper):
-    def __init__(self, env):
-        super(CroppedBorders, self).__init__(env)
-
-    def _preprocess_frame(observation: np.ndarray) -> np.ndarray:
-        # Remove scores and cut unecessary whitespace...
-        assert observation.shape == (210, 160), "Sizes don't match..."
-        ROWS = [194 + j for j in range(16)] + [i for i in range(34)]
-        cropped_frame = np.delete(observation, ROWS, axis=0)
-        # print(cropped_frame.shape)  # We've ended up with a 160x160 input...
-        return cropped_frame
 
 
 class ExperienceBuffer(object):
