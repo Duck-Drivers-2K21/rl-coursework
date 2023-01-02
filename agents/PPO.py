@@ -1,12 +1,11 @@
 import time
-import torch
 import wandb
-import numpy as np
 import gymnasium
-
+import torch
 import torch.nn as nn
-import torch.optim as optim
+import numpy as np
 from torch.distributions.categorical import Categorical
+import torch.optim as optim
 from wrappers import CroppedBorders, NoopsOnReset
 
 
@@ -27,7 +26,8 @@ def make_env(seed, idx, max_noops, num_frames_stack, frameskip):
 
     return create_env
 
-# Network from cleanRL: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_atari.py
+
+# Network class from cleanRL: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_atari.py
 class Network(nn.Module):
     def __init__(self, num_frame_stack, learning_rate):
         super(Network, self).__init__()
@@ -68,7 +68,6 @@ class Network(nn.Module):
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
-
 class PPOAgent:
 
     def __init__(self, envs, args, device):
@@ -91,8 +90,8 @@ class PPOAgent:
         with torch.no_grad():  # we dont need to cache gradient in rollout
             action, logprob, _, value = self.network.get_action_and_value(curr_states)
             self.values[step] = value.flatten()
-        self.actions[step] = action
         self.logprobs[step] = logprob
+        self.actions[step] = action
 
         new_next_states, reward, new_dones, _, new_info = envs.step(action.cpu().numpy())
         self.rewards[step] = torch.tensor(reward).to(device).view(-1)
@@ -100,21 +99,23 @@ class PPOAgent:
         next_done_tensor = torch.tensor(new_dones, dtype=float).to(device)
         return next_states_tensor, next_done_tensor, new_info
 
-    # find the expected return - actual return
-    def calc_advantages(self, num_steps, gamma, next_states):
+    def gae_advantages(self, num_steps, gamma, next_states, lamb):
         with torch.no_grad():
-            next_value = self.network.get_value(next_states).reshape(1, -1)  # gets value of next_states
-            returns = torch.zeros_like(self.rewards).to(device)
+            lamb = 0.95 # temp var to test if gae help ceiling
+            gae = torch.zeros_like(self.rewards).to(device)
+            prev_gae = 0
             for t in reversed(range(num_steps)):
                 if t == num_steps - 1:
-                    nextnonterminal = 1 - next_done
-                    next_return = next_value
+                    mask = 1.0 - next_done
+                    nextvalues = self.network.get_value(next_states).reshape(1, -1)
                 else:
-                    nextnonterminal = 1 - self.dones[t + 1]
-                    next_return = returns[t + 1]
-                returns[t] = self.rewards[t] + gamma * nextnonterminal * next_return
-            advantages = returns - self.values
-        return advantages, returns
+                    mask = 1.0 - self.dones[t + 1]
+                    nextvalues = self.values[t + 1]
+                delta = self.rewards[t] + gamma * nextvalues * mask - self.values[t]
+                gae[t] = delta + gamma * lamb * mask * prev_gae
+                prev_gae = gae[t]
+            returns = gae + self.values
+        return gae, returns
 
     def generate_minibatches(self):
         batch_indices = np.arange(self.args['batch_size'])
@@ -126,24 +127,28 @@ class PPOAgent:
             batches.append((start, end, minibatch_indicies))
         return batches
 
+    def anneal_lr(self, update_num, num_updates):
+        frac = 1.0 - (update_num - 1.0) / num_updates
+        lrnow = frac * args['learning_rate']
+        self.network.optimiser.param_groups[0]["lr"] = lrnow
+
+
     def learn(self, envs, next_states):
+        # Advantage is the difference in predicted reward and actual value
+        # Returns is what we get from the values predicted by the network
+        advantages, returns = self.gae_advantages(self.args['num_steps'], self.args['gamma'], next_states, 0.95)
 
+        advantages = advantages.flatten()
+        returns = returns.flatten()
+
+        # get stored state values
+        logprobs = self.logprobs.flatten()
+        states = self.states.reshape((-1,) + envs.single_observation_space.shape)
+        actions = self.actions.flatten()
+
+        batches = self.generate_minibatches()
+        critic_loss, actor_loss, entropy_loss = 0, 0, 0
         for epoch in range(args['num_epochs']):
-            # Advantage is the difference in predicted reward and actual value
-            # Returns is what we get from the values predicted by the network
-            advantages, returns = self.calc_advantages(self.args['num_steps'], self.args['gamma'], next_states)
-
-            advantages = advantages.flatten()
-            returns = returns.flatten()
-
-            # get stored state values
-            logprobs = self.logprobs.flatten()
-            states = self.states.reshape((-1,) + envs.single_observation_space.shape)
-            values = self.values.flatten()
-            actions = self.actions.flatten()
-
-            batches = self.generate_minibatches()
-            val_loss, policy_loss, entropy_loss = 0, 0, 0
 
             # Use minibatches to optimise network
             for start, end, minibatch_indicies in batches:
@@ -166,38 +171,40 @@ class PPOAgent:
                 weighted_probs = advantages[minibatch_indicies] * ratio
                 weighted_clipped_probs = torch.clamp(ratio, 1 - self.args['clip_co'], 1 + self.args['clip_co']) \
                                          * advantages[minibatch_indicies]
-                policy_loss = -torch.min(weighted_probs, weighted_clipped_probs).mean()
+                actor_loss = -torch.min(weighted_probs, weighted_clipped_probs).mean()
 
                 # MSE currently but could try something else
                 # TODO: turn loss calculation into its own function then can test diff loss funcs.
-                val_loss = ((new_val - returns[minibatch_indicies]) ** 2).mean()
+                critic_loss = ((new_val - returns[minibatch_indicies]) ** 2).mean()
 
                 entropy_loss = entropy.mean()
 
                 # minimise polilicy loss, value loss and maximise entropy loss
                 # larger entropy is larger exploration
-                loss = policy_loss - self.args['ent_co'] * entropy_loss + val_loss * self.args['vl_co']
+                loss = actor_loss - self.args['ent_co'] * entropy_loss + critic_loss * self.args['vl_co']
 
                 self.network.optimiser.zero_grad()
                 loss.backward()
                 self.network.optimiser.step()
 
-        # returns debug variables for wandb
-        return approx_kl, values, returns, val_loss, policy_loss, entropy_loss
+            # returns debug variables for wandb
+            return approx_kl, critic_loss, actor_loss, entropy_loss
 
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
+    print(device)
+
     args = {
         "seed": 1,
         "learning_rate": 2.5e-4,
         'num_env': 1,
-        'num_steps': 128,
+        'num_steps': 128*7, #2048
         'total_timesteps': 25000000,  # set arbitrarily high
         'gamma': 0.99,
         'gae_lambda': 0.95,
-        'num_minibatch': 4,
+        'num_minibatch': 32,
         'num_epochs': 4,
         'clip_co': 0.2,
         'ent_co': 0.01,
@@ -218,9 +225,9 @@ if __name__ == "__main__":
 
     agent = PPOAgent(envs, args, device)
 
-    # game start
-    global_step = 0
+    steps_done = 0
     start_time = time.time()
+
     next_states = torch.tensor(envs.reset()[0]).to(device)
     next_done = torch.zeros(args["num_env"]).to(device)
     num_updates = args['total_timesteps'] // args['batch_size']
@@ -230,10 +237,12 @@ if __name__ == "__main__":
     # each update involves, interacting with env (for a num_steps), training policy and updating agent
     for update in range(1, num_updates + 1):
 
+        agent.anneal_lr(update, num_updates)
+
         # policy rollout (doing num steps in env)
         # each policy step occurs in each vector env so we inc global step by num envs
         for step in range(0, args['num_steps']):
-            global_step += 1 * args['num_env']  # 1 step per vector env
+            steps_done += 1 * args['num_env']  # 1 step per vector env
             next_states, next_done, info = agent.rollout(next_states, next_done, step)
 
             if info != {}:
@@ -246,20 +255,15 @@ if __name__ == "__main__":
                             wandb.log({"episodic_length": env_info['episode']['l'][0]})
 
         # debug variables
-        old_approx_kl, batch_values, batch_returns, v_loss, pg_loss, entropy_loss = agent.learn(envs, next_states)
-
-        y_pred, y_true = batch_values.cpu().numpy(), batch_returns.cpu().numpy()
-        var_y = np.var(y_true)
+        old_approx_kl, v_loss, pg_loss, entropy_loss = agent.learn(envs, next_states)
 
         # says if value function is a good indicator of returns
-        explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-
+        wandb.log({"charts/learning_rate":  agent.network.optimiser.param_groups[0]["lr"]})
         wandb.log({"losses/value_loss": v_loss.item()})
         wandb.log({"losses/policy_loss": pg_loss.item()})
         wandb.log({"losses/entropy": entropy_loss.item()})
         wandb.log({"losses/old_approx_kl": old_approx_kl.item()})
-        wandb.log({"losses/explained_variance": explained_var})
-        print("SPS:", int(global_step / (time.time() - start_time)))
-        wandb.log({"charts/SPS": int(global_step / (time.time() - start_time))})
+        print("SPS:", int(steps_done / (time.time() - start_time)))
+        wandb.log({"charts/SPS": int(steps_done / (time.time() - start_time))})
 
     envs.close()
