@@ -217,7 +217,7 @@ if __name__ == "__main__":
     args['batch_size'] = args['num_env'] * args['num_steps']
     args['minibatch_size'] = int(args['num_steps'] // args['num_minibatch'])
 
-    wandb.init(project="test pong again", entity="lc2232", config=args)
+    wandb.init(config=args)
 
     envs = gymnasium.vector.SyncVectorEnv(
         [make_env(args['seed'], i, args['max_noops'], args['num_frames_stack'], args['frameskip']) for i in
