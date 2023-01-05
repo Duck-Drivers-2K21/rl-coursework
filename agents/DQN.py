@@ -9,8 +9,10 @@ import time
 
 E_START = 1
 E_END = 0.01
-E_STEPS_TO_END = 500_000
+E_STEPS_TO_END = 1_000_000
 MAX_STEPS = 5_000_000
+
+EVAL_INTERVAL_EPISODES = 2
 
 BATCH_SIZE = 32
 GAMMA = 0.99
@@ -159,6 +161,22 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
     return (proportion_done * (e_end - e_start)) + e_start
 
 
+def evaluation_episode(env, policy_net):
+    ep_return = 0
+    state, info = env.reset()
+
+    done = False
+    while not done:
+        with torch.no_grad():
+            s = torch.Tensor(np.asarray(state)).to(device).unsqueeze(0)
+            action = torch.argmax(policy_net(s), dim=1).cpu().numpy()[0]
+
+        state, reward, done, trunc, info = env.step(action)
+        ep_return += reward
+
+    return ep_return
+
+
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     wandb.init(project="final-runs", config={
@@ -178,7 +196,7 @@ if __name__ == "__main__":
         "seed": SEED
     })
 
-    env = gymnasium.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
+    env = gymnasium.make("ALE/Pong-v5", difficulty=2, render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
     env = gymnasium.wrappers.RecordVideo(env, "videos", episode_trigger=lambda x: x % 100 == 0)
     env = NoopsOnReset(env, MAX_NOOPS)
     env = gymnasium.wrappers.RecordEpisodeStatistics(env)
@@ -230,6 +248,8 @@ if __name__ == "__main__":
                 torch.save(policy_net.state_dict(), "latest_model.nn")
                 log_info["video"] = wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")
             episode += 1
+            if (episode % EVAL_INTERVAL_EPISODES) == 0:
+                log_info["evaluation_episode_return"] = evaluation_episode(env, policy_net)
             state, info = env.reset()
 
         if len(memory) >= MIN_MEM_SIZE and steps_done % UPDATE_FREQ == 0:
@@ -252,7 +272,7 @@ if __name__ == "__main__":
 
         if len(log_info) != 0:
             log_info["steps_done"] = steps_done
-            wandb.log(log_info)
+            wandb.log(log_info, step=steps_done)
 
         if steps_done % TARGET_NET_UPDATE_FREQ == 0:
             target_net.load_state_dict(policy_net.state_dict())
