@@ -12,9 +12,9 @@ import functools
 POLICY_EVAL_INTERVAL_EPISODES = 100
 
 
-def make_env(seed, idx, max_noops, num_frames_stack, frameskip):
+def make_env(seed, idx, max_noops, num_frames_stack, frameskip, difficulty):
     def create_env():
-        env = gymnasium.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=frameskip, repeat_action_probability=0)
+        env = gymnasium.make("ALE/Pong-v5",difficulty=difficulty, render_mode="rgb_array", frameskip=frameskip, repeat_action_probability=0)
         env = gymnasium.wrappers.RecordEpisodeStatistics(env)
         env = CroppedBorders(env)
         if idx == 999:
@@ -241,7 +241,10 @@ if __name__ == "__main__":
         'max_noops': 30,
         'num_frames_stack': 4,
         'frameskip': 4,
+        'difficulty': 0,
     }
+
+    RUN_NAME = f"ppo_{args['num_env']}env_diff{args['difficulty']}"
 
     np.random.seed(args["seed"])
     torch.manual_seed(args["seed"])
@@ -252,13 +255,13 @@ if __name__ == "__main__":
     args['batch_size'] = args['num_env'] * args['num_steps']
     args['minibatch_size'] = int(args['num_steps'] // args['num_minibatch'])
 
-    wandb.init(entity='lc2232', project='test-pong', config=args, name='ppo_16env_diff1')
+    wandb.init(entity='cage-boys', project='final-final-runs', config=args, name=RUN_NAME)
 
     envs = gymnasium.vector.SyncVectorEnv(
-        [make_env(args['seed'], i, args['max_noops'], args['num_frames_stack'], args['frameskip']) for i in
+        [make_env(args['seed'], i, args['max_noops'], args['num_frames_stack'], args['frameskip'], args['difficulty']) for i in
          range(args['num_env'])])
 
-    eval_env = make_env(args['seed'], 999, args['max_noops'], args['num_frames_stack'], args['frameskip'])()
+    eval_env = make_env(args['seed'], 999, args['max_noops'], args['num_frames_stack'], args['frameskip'], args['difficulty'])()
     policy_evaluations_done = 0
 
     agent = PPOAgent(envs, args, device)
