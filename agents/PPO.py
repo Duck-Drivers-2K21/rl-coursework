@@ -15,7 +15,7 @@ def make_env(seed, idx, max_noops, num_frames_stack, frameskip):
         env = gymnasium.wrappers.RecordEpisodeStatistics(env)
         env = CroppedBorders(env)
         if idx == 0:
-            env = gymnasium.wrappers.RecordVideo(env, "videos_ppo")
+            env = gymnasium.wrappers.RecordVideo(env, "videos_ppo",  episode_trigger=lambda x: x % 100 == 0)
         env = NoopsOnReset(env, max_noops)
         env = gymnasium.wrappers.ResizeObservation(env, (84, 84))
         env = gymnasium.wrappers.GrayScaleObservation(env)
@@ -199,13 +199,13 @@ if __name__ == "__main__":
     args = {
         "seed": 1,
         "learning_rate": 2.5e-4,
-        'num_env': 1,
-        'num_steps': 128*7, #2048
-        'total_timesteps': 25000000,  # set arbitrarily high
+        'num_env': 8,
+        'num_steps': 128, # 2048
+        'total_timesteps': 5000000,  # set arbitrarily high
         'gamma': 0.99,
         'gae_lambda': 0.95,
-        'num_minibatch': 32,
-        'num_epochs': 4,
+        'num_minibatch': 4,
+        'num_epochs': 3,
         'clip_co': 0.2,
         'ent_co': 0.01,
         'vl_co': 0.5,
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     args['batch_size'] = args['num_env'] * args['num_steps']
     args['minibatch_size'] = int(args['num_steps'] // args['num_minibatch'])
 
-    wandb.init(config=args)
+    wandb.init(entity='cage-boys', project='final-runs',config=args, name='ppo_8env_diff1')
 
     envs = gymnasium.vector.SyncVectorEnv(
         [make_env(args['seed'], i, args['max_noops'], args['num_frames_stack'], args['frameskip']) for i in
@@ -251,19 +251,20 @@ if __name__ == "__main__":
                     for env_info in infos:
                         if env_info:
                             print(env_info['episode']['r'][0])
-                            wandb.log({"episodic_return": env_info['episode']['r'][0]})
-                            wandb.log({"episodic_length": env_info['episode']['l'][0]})
+                            wandb.log({"episodic_return": env_info['episode']['r'][0]}, step=steps_done)
+                            wandb.log({"episodic_length": env_info['episode']['l'][0]}, step=steps_done)
 
         # debug variables
         old_approx_kl, v_loss, pg_loss, entropy_loss = agent.learn(envs, next_states)
 
         # says if value function is a good indicator of returns
-        wandb.log({"charts/learning_rate":  agent.network.optimiser.param_groups[0]["lr"]})
-        wandb.log({"losses/value_loss": v_loss.item()})
-        wandb.log({"losses/policy_loss": pg_loss.item()})
-        wandb.log({"losses/entropy": entropy_loss.item()})
-        wandb.log({"losses/old_approx_kl": old_approx_kl.item()})
+        wandb.log({"charts/learning_rate":  agent.network.optimiser.param_groups[0]["lr"]}, step=steps_done)
+        wandb.log({"losses/value_loss": v_loss.item()}, step=steps_done)
+        wandb.log({"losses/policy_loss": pg_loss.item()}, step=steps_done)
+        wandb.log({"losses/entropy": entropy_loss.item()}, step=steps_done)
+        wandb.log({"losses/old_approx_kl": old_approx_kl.item()}, step=steps_done)
+        wandb.log({"steps_done": steps_done})
         print("SPS:", int(steps_done / (time.time() - start_time)))
-        wandb.log({"charts/SPS": int(steps_done / (time.time() - start_time))})
+        wandb.log({"charts/SPS": int(steps_done / (time.time() - start_time))}, step=steps_done)
 
     envs.close()
