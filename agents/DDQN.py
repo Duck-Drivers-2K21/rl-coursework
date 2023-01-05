@@ -1,6 +1,4 @@
-import random
 from collections import deque
-import time
 
 import random
 import gymnasium
@@ -10,6 +8,8 @@ import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 import time
+from wrappers import RandomActionsOnReset
+
 
 LEARNING_RATE = 1e-4
 TARGET_NET_UPDATE_FREQ = 1_000
@@ -60,18 +60,6 @@ class ExperienceBuffer(object):
 
     def __len__(self):
         return len(self.memory)
-
-
-class RandomActionsOnReset(gymnasium.Wrapper):
-    def __init__(self, env, max_random_actions):
-        super(RandomActionsOnReset, self).__init__(env)
-        self.max_random_actions = max_random_actions
-
-    def reset(self):
-        obs, info = self.env.reset()
-        for _ in range(np.random.randint(1, self.max_random_actions + 1)):
-            obs = self.env.step(self.env.action_space.sample())[0]
-        return obs, info
 
 
 def run():
