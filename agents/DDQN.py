@@ -187,6 +187,9 @@ if __name__ == "__main__":
     env = gymnasium.wrappers.FrameStack(env, NUM_FRAMES_STACK)
     env.action_space.seed(SEED)
     env.observation_space.seed(SEED)
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
 
     state, info = env.reset()
 
