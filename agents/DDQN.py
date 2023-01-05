@@ -12,8 +12,6 @@ E_END = 0.01
 E_STEPS_TO_END = 1_000_000
 MAX_STEPS = 5_000_000
 
-EVAL_INTERVAL_EPISODES = 5
-
 BATCH_SIZE = 32
 GAMMA = 0.99
 LEARNING_RATE = 1e-4
@@ -162,7 +160,7 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    wandb.init(project="final-runs", config={
+    wandb.init(project="final-final-runs", config={
         "frameskip": FRAMESKIP,
         "framestack": NUM_FRAMES_STACK,
         "epsilon_start": E_START,
@@ -230,10 +228,9 @@ if __name__ == "__main__":
             last_100_episodes_cum_reward += info["episode"]["r"]
 
         if done:
-            if (episode % 100) == 0:
+            if (episode % 100) == 0 and episode != 0:
                 torch.save(policy_net.state_dict(), "latest_model.nn")
                 log_info["video"] = wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")
-            if (episode % EVAL_INTERVAL_EPISODES) == 0:
                 log_info["evaluation_episode_return"] = last_100_episodes_cum_reward / 100
                 last_100_episodes_cum_reward = 0
             state, info = env.reset()
