@@ -159,20 +159,6 @@ def calc_epsilon(e_start, e_end, e_steps_to_anneal, steps_done):
     proportion_done = min((steps_done + 1) / (e_steps_to_anneal + 1), 1)
     return (proportion_done * (e_end - e_start)) + e_start
 
-def evaluation_episode(env, policy_net):
-    ep_return = 0
-    state, _ = env.reset()
-
-    done = False
-    while not done:
-        with torch.no_grad():
-            s = torch.Tensor(np.asarray(state)).to(device).unsqueeze(0)
-            action = torch.argmax(policy_net(s), dim=1).cpu().numpy()[0]
-
-        state, reward, done, trunc, info = env.step(action)
-        ep_return += reward
-
-    return ep_return
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -215,6 +201,8 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
+    last_100_episodes_cum_reward = 0
+
     steps_done = 0
     episode = 0
     while steps_done < MAX_STEPS:
@@ -239,15 +227,17 @@ if __name__ == "__main__":
                         "memory length": len(memory),
                         "steps per second": steps_done / (time.time() - start_time),
                         }
+            last_100_episodes_cum_reward += info["episode"]["r"]
 
         if done:
             if (episode % 100) == 0:
                 torch.save(policy_net.state_dict(), "latest_model.nn")
                 log_info["video"] = wandb.Video(f'videos/rl-video-episode-{episode}.mp4', fps=30, format="mp4")
-            episode += 1
             if (episode % EVAL_INTERVAL_EPISODES) == 0:
-                log_info["evaluation_episode_return"] = evaluation_episode(env, policy_net)
+                log_info["evaluation_episode_return"] = last_100_episodes_cum_reward / 100
+                last_100_episodes_cum_reward = 0
             state, info = env.reset()
+            episode += 1
 
         if len(memory) >= MIN_MEM_SIZE and steps_done % UPDATE_FREQ == 0:
             states, actions, rewards, next_states, dones = memory.sample(BATCH_SIZE, device)
