@@ -192,7 +192,7 @@ class PPOAgent:
 
                 # minimise polilicy loss, value loss and maximise entropy loss
                 # larger entropy is larger exploration
-                loss = actor_loss - self.args['ent_co'] * entropy_loss + critic_loss * self.args['vl_co']
+                loss = actor_loss - self.args['ent_co'] * entropy_loss + critic_loss * self.args['vf_co']
 
                 self.network.optimiser.zero_grad()
                 loss.backward()
@@ -228,23 +228,23 @@ if __name__ == "__main__":
     args = {
         "seed": 1,
         "learning_rate": 2.5e-4,
-        'num_env': 16,
+        'num_env': 8,
         'num_steps': 128,  # 2048
         'total_timesteps': 5000000,  # set arbitrarily high
         'gamma': 0.99,
         'gae_lambda': 0.95,
-        'num_minibatch': 8,
+        'num_minibatch': 4,
         'num_epochs': 4,
-        'clip_co': 0.2,
+        'clip_co': 0.1,
         'ent_co': 0.01,
-        'vl_co': 0.5,
+        'vf_co': 0.5,
         'max_noops': 30,
         'num_frames_stack': 4,
         'frameskip': 4,
         'difficulty': 0,
     }
 
-    RUN_NAME = f"ppo_{args['num_env']}env_diff{args['difficulty']}"
+    RUN_NAME = f"ppo_{args['num_env']}env_diff{args['difficulty']}_clip{args['clip_co']}"
 
     np.random.seed(args["seed"])
     torch.manual_seed(args["seed"])
@@ -291,7 +291,7 @@ if __name__ == "__main__":
                     infos = info['final_info']
                     for env_info in infos:
                         if env_info:
-                            print(env_info['episode']['r'][0])
+                            # print(env_info['episode']['r'][0])
                             wandb.log({"episodic_return": env_info['episode']['r'][0]}, step=steps_done)
                             wandb.log({"episodic_length": env_info['episode']['l'][0]}, step=steps_done)
                             evaluation_episodic_return.append(env_info['episode']['r'][0])
