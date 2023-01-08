@@ -183,7 +183,7 @@ if __name__ == "__main__":
         "seed": SEED
     })
 
-    env = gymnasium.make("ALE/Pong-v5", difficulty=2, render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
+    env = gymnasium.make("ALE/Pong-v5", render_mode="rgb_array", frameskip=FRAMESKIP, repeat_action_probability=0)
     env = gymnasium.wrappers.RecordVideo(env, "videos", episode_trigger=lambda x: x % 100 == 0)
     env = NoopsOnReset(env, MAX_NOOPS)
     env = gymnasium.wrappers.RecordEpisodeStatistics(env)
