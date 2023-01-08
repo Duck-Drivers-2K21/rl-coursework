@@ -84,6 +84,8 @@ class ExperienceBuffer(object):
         self.rewards = np.ndarray((self.max_capacity,), dtype=int)
         self.dones = np.ndarray((self.max_capacity,), dtype=int)
 
+        # Our optimisation means we won't be able to create full states from some frames. So we can't use these frames
+        # for transitions, hence we keep a track of what frames are/aren't valid with this data structure.
         self.valid_frame = np.ndarray((self.max_capacity,), dtype=bool)
 
         self.filled = False
@@ -128,6 +130,9 @@ class ExperienceBuffer(object):
         rewards = np.ndarray((valid_samples,), dtype=int)
         dones = np.ndarray((valid_samples,), dtype=int)
 
+        # We check whether our random frames are valid, can we construct a 4 frame stack with them as the ending frame
+        # If not valid, these frames are simply dropped. While this does result in the batch containing less than 32
+        # transitions, it does not appear to negatively affect training.
         invalid_frames_passed = 0
         for sample_num, i in enumerate(indices):
             sample_num = sample_num - invalid_frames_passed
@@ -185,8 +190,8 @@ if __name__ == "__main__":
     env = gymnasium.wrappers.ResizeObservation(env, (84, 84))
     env = gymnasium.wrappers.GrayScaleObservation(env)
     env = gymnasium.wrappers.FrameStack(env, NUM_FRAMES_STACK)
-    env.action_space.seed(SEED)
-    env.observation_space.seed(SEED)
+    env.action_space.seed(1)
+    env.observation_space.seed(1)
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED)
