@@ -1,5 +1,7 @@
-import gym
+import gymnasium
 
+FRAME_SKIP = 4
+DIFFICULTY = 0  # TODO: Should this be set to 2 instead?...
 
 class MemoryLocations:
     # https://github.com/mila-iqia/atari-representation-learning/blob/master/atariari/benchmark/ram_annotations.py
@@ -72,11 +74,15 @@ class State:
     def is_terminal(self): return self.terminated or self.truncated
 
 
-class Environment:
-    def __init__(self, seed: int = 42, render: bool = False, difficulty: int = 0):
-        render_mode = "human" if render else None
-
-        env = gym.make("ALE/Pong-v5", difficulty=difficulty, obs_type='ram', render_mode=render_mode)
+class NaiveEnvWrapper:
+    """
+    Environment Wrapper for naive agents. Uses RAM represnetation.
+    """
+    def __init__(self, seed: int = 42, render: bool = False, difficulty: int = DIFFICULTY, record: bool = False,
+                 agent_name: str = "NoName"):
+        env = gymnasium.make("ALE/Pong-v5", difficulty=difficulty, obs_type='ram', render_mode="rgb_array", frameskip=FRAME_SKIP)
+        if record:
+            env = gymnasium.wrappers.RecordVideo(env, "videos", episode_trigger=lambda x: x % 100 == 0, name_prefix=agent_name)
 
         env.action_space.seed(seed)
         observation, info = env.reset(seed=seed)
@@ -84,9 +90,8 @@ class Environment:
         self.state = State(observation, info)
 
     def step(self, action: int) -> float:
-        # This will need to be reworked for non-naive agents...
         if self.state.is_terminal:
-            self.reset()  # TODO: Why are we resetting here? Wouldn't an assertion be more logical/safer?
+            assert False, "Terminal state in `step`."
         self.state.observation, reward, self.state.terminated, self.state.truncated, self.state.info = self.env.step(
             action)
         return reward
@@ -95,5 +100,5 @@ class Environment:
         observation, info = self.env.reset()
         self.state = State(observation, info)
 
-    def close(self):
-        return self.env.close()
+    def close(self) -> None:
+        self.env.close()
