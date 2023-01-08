@@ -11,6 +11,8 @@ import functools
 
 POLICY_EVAL_INTERVAL_EPISODES = 10
 
+# Code written following this tutorial: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
+
 
 def make_env(seed, idx, max_noops, num_frames_stack, frameskip, difficulty):
     def create_env():
