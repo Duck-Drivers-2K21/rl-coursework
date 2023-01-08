@@ -1,7 +1,8 @@
 import gymnasium
 
 FRAME_SKIP = 4
-DIFFICULTY = 0  # TODO: Should this be set to 2 instead?...
+DIFFICULTY = 0
+ENV_SEED = 1
 
 class MemoryLocations:
     # https://github.com/mila-iqia/atari-representation-learning/blob/master/atariari/benchmark/ram_annotations.py
@@ -78,9 +79,10 @@ class NaiveEnvWrapper:
     """
     Environment Wrapper for naive agents. Uses RAM represnetation.
     """
-    def __init__(self, seed: int = 42, render: bool = False, difficulty: int = DIFFICULTY, record: bool = False,
+    def __init__(self, seed: int = ENV_SEED, difficulty: int = DIFFICULTY, frame_skip=FRAME_SKIP, record: bool = False,
                  agent_name: str = "NoName"):
-        env = gymnasium.make("ALE/Pong-v5", difficulty=difficulty, obs_type='ram', render_mode="rgb_array", frameskip=FRAME_SKIP)
+        env = gymnasium.make("ALE/Pong-v5", difficulty=difficulty, obs_type='ram', render_mode="rgb_array",
+                             frameskip=frame_skip, repeat_action_probability=0)
         if record:
             env = gymnasium.wrappers.RecordVideo(env, "videos", episode_trigger=lambda x: x % 100 == 0, name_prefix=agent_name)
 
