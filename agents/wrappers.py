@@ -13,16 +13,17 @@ class NoopsOnReset(gymnasium.Wrapper):
         return obs, info
 
 
-class CroppedBorders(gymnasium.Wrapper):
-    def __init__(self, env):
-        super(CroppedBorders, self).__init__(env)
+class CroppedBorders(gymnasium.ObservationWrapper):
+    def __init__(self, env: gymnasium.Env):
+        super().__init__(env)
+        obs_shape = (160, 160) + env.observation_space.shape[2:]
+        self.observation_space = gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
 
-    def _preprocess_frame(observation: np.ndarray) -> np.ndarray:
+    def observation(self, observation: np.ndarray) -> np.ndarray:
         # Remove scores and cut unecessary whitespace...
-        assert observation.shape == (210, 160), "Sizes don't match..."
+        assert observation.shape == (210, 160, 3), "Sizes don't match..." + str(observation.shape)
         ROWS = [194 + j for j in range(16)] + [i for i in range(34)]
         cropped_frame = np.delete(observation, ROWS, axis=0)
-        # print(cropped_frame.shape)  # We've ended up with a 160x160 input...
         return cropped_frame
 
 
