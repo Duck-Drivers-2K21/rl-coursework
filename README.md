@@ -1,6 +1,19 @@
 # Playing Pong with Deep Reinforcement Learning
+> Group coursework for Reinforcement Learning module. Awarded 72/100.
 
 An exploration in Deep Reinforcement Learning by writing a range of agents that learn to play pong.
+
+
+### Feedback
+
+  - Pong (through image observations) is a difficult problem which you were able to solve in a number of ways.
+  - You selected a range of interesting algorithms that you implemented well.
+
+  - You used the continuous version of the problem which is challenging and you discussed why this is harder than the RAM alternative.
+
+  - You outlined your problem well, defining the states, actions and rewards.
+
+  - Interesting discussion of your various optimisations and the analysis of their impacts.
 
 ### Agents
 - Deep Q-Networks (agents/DQN)
